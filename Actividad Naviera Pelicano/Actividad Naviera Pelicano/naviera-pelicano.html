@@ -1,0 +1,1409 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Simulador Naviera Pelícano</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&family=Source+Serif+4:ital,wght@1,400;1,600&display=swap">
+<style>
+/* Layout: la carta náutica es la protagonista (columna ancha que se queda fija al desplazarse);
+   a la derecha, la mesa de control con pestañas explica cada algoritmo. En pantallas angostas todo se apila. */
+:root {
+  --bg: #e9eff0;
+  --surface: #fbfdfd;
+  --surface-2: #f0f5f6;
+  --ink: #10222a;
+  --muted: #53666e;
+  --line: #c8d5d9;
+  --accent: #0b5a6b;
+  --accent-ink: #ffffff;
+  --accent-soft: #d5e9ee;
+  --overprint: #b0127a;
+  --sea: #f3f9fb;
+  --shoal-1: #ddeef4;
+  --shoal-2: #c4dfea;
+  --land: #ece2c2;
+  --land-edge: #9c8a5c;
+  --grid: #a9c6d3;
+  --grid-ink: #5c8496;
+  --halo: #f3f9fb;
+  --r-costera: #bd7406;
+  --r-istmo: #12805a;
+  --r-antillas: #2a56c0;
+  --r-oriental: #c2382d;
+  --ok: #12805a;
+  --wait: #a35f00;
+  --f-display: "Barlow Condensed", "Arial Narrow", system-ui, sans-serif;
+  --f-body: "Barlow", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-serif: "Source Serif 4", Georgia, "Times New Roman", serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0a1316; --surface: #101d22; --surface-2: #15272e; --ink: #e2ecee; --muted: #93a8ae; --line: #243a41;
+    --accent: #5cc2d6; --accent-ink: #062027; --accent-soft: #15353d; --overprint: #ff5cc6;
+    --sea: #0d1c23; --shoal-1: #10252e; --shoal-2: #143140; --land: #2a3127; --land-edge: #5a6650;
+    --grid: #1d3a46; --grid-ink: #6f94a2; --halo: #0d1c23;
+    --r-costera: #f0a73a; --r-istmo: #3cc68e; --r-antillas: #7fa3ff; --r-oriental: #ff7466;
+    --ok: #3cc68e; --wait: #f0a73a;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0a1316; --surface: #101d22; --surface-2: #15272e; --ink: #e2ecee; --muted: #93a8ae; --line: #243a41;
+  --accent: #5cc2d6; --accent-ink: #062027; --accent-soft: #15353d; --overprint: #ff5cc6;
+  --sea: #0d1c23; --shoal-1: #10252e; --shoal-2: #143140; --land: #2a3127; --land-edge: #5a6650;
+  --grid: #1d3a46; --grid-ink: #6f94a2; --halo: #0d1c23;
+  --r-costera: #f0a73a; --r-istmo: #3cc68e; --r-antillas: #7fa3ff; --r-oriental: #ff7466;
+  --ok: #3cc68e; --wait: #f0a73a;
+  color-scheme: dark;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 15px; line-height: 1.5; }
+button, input, select { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.pagina {
+  max-width: 1500px; margin: 0 auto; display: grid; gap: 18px;
+  padding-block: 22px 40px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+
+/* Cabecera */
+.cabecera { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 20px 32px; align-items: end; }
+.eyebrow { margin: 0; font-family: var(--f-display); font-weight: 600; font-size: 13px; letter-spacing: .14em; text-transform: uppercase; color: var(--accent); }
+h1 { margin: 2px 0 8px; font-family: var(--f-display); font-weight: 700; font-size: clamp(36px, 5vw, 58px); line-height: .95; letter-spacing: -.005em; text-wrap: balance; }
+h1 em { font-family: var(--f-serif); font-style: italic; font-weight: 400; color: var(--muted); font-size: .62em; letter-spacing: 0; }
+.bajada { margin: 0; max-width: 64ch; color: var(--muted); }
+.bajada b { color: var(--ink); font-weight: 600; }
+.flujo { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.flujo button {
+  width: 100%; height: 100%; text-align: left; cursor: pointer; display: grid; gap: 2px; align-content: start;
+  padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface);
+}
+.flujo button:hover { border-color: var(--accent); }
+.flujo .n { font-family: var(--f-mono); font-size: 11px; color: var(--muted); }
+.flujo .t { font-family: var(--f-display); font-weight: 600; font-size: 18px; line-height: 1.1; }
+.flujo .d { font-size: 13px; color: var(--muted); line-height: 1.35; }
+
+/* Resumen */
+.kpis { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
+.kpi { padding: 10px 16px; display: grid; gap: 0; min-width: 0; }
+.kpi + .kpi { border-left: 1px solid var(--line); }
+.kpi span { font-family: var(--f-display); font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.kpi b { font-family: var(--f-mono); font-weight: 500; font-size: 21px; font-variant-numeric: tabular-nums; line-height: 1.3; }
+.kpi small { color: var(--muted); font-size: 12.5px; }
+
+/* Tablero */
+.tablero { display: grid; grid-template-columns: minmax(0, 1.62fr) minmax(0, 1fr); gap: 18px; align-items: start; }
+.col-mapa { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 12px); display: grid; gap: 8px; min-width: 0; }
+.col-panel { min-width: 0; display: grid; gap: 12px; }
+
+.mapa-barra { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; justify-content: space-between; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip {
+  display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+  padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface);
+  font-family: var(--f-display); font-weight: 600; font-size: 14px; letter-spacing: .02em;
+}
+.chip i { width: 10px; height: 10px; border-radius: 50%; background: var(--c, var(--muted)); }
+.chip[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.interruptores { display: flex; gap: 6px; flex-wrap: wrap; }
+.boton-sec {
+  cursor: pointer; padding: 4px 10px; border-radius: 6px; border: 1px solid var(--line); background: var(--surface);
+  font-size: 13px; font-weight: 500; display: inline-flex; gap: 6px; align-items: center;
+}
+.boton-sec[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); }
+
+.mapa-marco { border: 1px solid var(--line); border-radius: 10px; background: var(--sea); overflow: hidden; }
+.mapa-scroll { overflow-x: auto; }
+.mapa-lienzo { position: relative; min-width: 680px; }
+#mapa { display: block; width: 100%; height: auto; user-select: none; }
+
+/* Carta náutica (SVG) */
+.mar { fill: var(--sea); }
+.bajo-1 { fill: var(--shoal-1); stroke: var(--shoal-1); stroke-width: 16; stroke-linejoin: round; }
+.bajo-2 { fill: var(--shoal-2); stroke: var(--shoal-2); stroke-width: 6; stroke-linejoin: round; }
+.tierra { fill: var(--land); stroke: var(--land-edge); stroke-width: .7; stroke-linejoin: round; }
+.reticula { stroke: var(--grid); stroke-width: .6; }
+.ret-txt { fill: var(--grid-ink); font-family: var(--f-mono); font-size: 10px; }
+.marco { fill: none; stroke: var(--ink); stroke-width: 1.5; }
+.agua-txt { fill: var(--grid-ink); font-family: var(--f-serif); font-style: italic; font-size: 17px; letter-spacing: .06em; }
+.agua-txt.grande { font-size: 22px; letter-spacing: .32em; }
+.pais-txt { fill: var(--land-edge); font-family: var(--f-display); font-weight: 600; font-size: 11px; letter-spacing: .22em; }
+.rosa-anillo { fill: none; stroke: var(--grid-ink); stroke-width: .8; }
+.rosa-punta { fill: var(--grid-ink); }
+.rosa-punta.clara { fill: var(--sea); stroke: var(--grid-ink); stroke-width: .8; }
+.rosa-txt { fill: var(--grid-ink); font-family: var(--f-display); font-weight: 700; font-size: 12px; }
+.escala-a { fill: var(--ink); }
+.escala-b { fill: var(--sea); stroke: var(--ink); stroke-width: .8; }
+.escala-txt { fill: var(--ink); font-family: var(--f-mono); font-size: 9.5px; }
+
+.conexion { fill: none; stroke: var(--grid-ink); stroke-width: 1; stroke-dasharray: 2 4; opacity: .75; }
+.dist-txt { fill: var(--grid-ink); font-family: var(--f-mono); font-size: 9.5px; paint-order: stroke; stroke: var(--halo); stroke-width: 3px; stroke-linejoin: round; }
+
+.ruta { transition: opacity .25s; }
+.ruta.atenuada { opacity: .13; }
+.ruta-linea { fill: none; stroke: var(--c); stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+.ruta-flecha { fill: none; stroke: var(--c); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.barco path { fill: var(--c); stroke: var(--halo); stroke-width: 1.2; }
+
+.resalte-casco { fill: none; stroke: var(--halo); stroke-width: 8; stroke-linecap: round; stroke-linejoin: round; }
+.resalte { fill: none; stroke: var(--overprint); stroke-width: 3.6; stroke-linecap: round; stroke-linejoin: round; }
+.resalte.candidato { stroke-width: 1.8; stroke-dasharray: 5 4; }
+.resalte.hecho { stroke: var(--c); stroke-width: 3.2; }
+.resalte-anillo { fill: none; stroke: var(--overprint); stroke-width: 2.2; }
+.resalte-txt { fill: var(--overprint); font-family: var(--f-mono); font-weight: 500; font-size: 11px; paint-order: stroke; stroke: var(--halo); stroke-width: 3.5px; stroke-linejoin: round; }
+
+.puerto { cursor: pointer; outline: none; }
+.puerto-zona { fill: transparent; }
+.puerto-punto { stroke: var(--halo); stroke-width: 1.6; }
+.puerto-punto.vacio { fill: var(--sea); stroke: var(--c); stroke-width: 1.8; }
+.puerto:hover .puerto-punto, .puerto:focus-visible .puerto-punto { stroke: var(--ink); stroke-width: 2; }
+.puerto-txt { fill: var(--ink); font-family: var(--f-display); font-weight: 600; font-size: 13.5px; paint-order: stroke; stroke: var(--halo); stroke-width: 3.5px; stroke-linejoin: round; }
+.puerto-txt.base { font-weight: 700; font-size: 15.5px; }
+.puerto-txt tspan.d { fill: var(--overprint); font-family: var(--f-mono); font-weight: 500; font-size: 11px; }
+.base-anillo { fill: var(--halo); stroke: var(--ink); stroke-width: 2; }
+.base-centro { fill: var(--ink); }
+.parada circle { fill: var(--c); stroke: var(--halo); stroke-width: 1.3; }
+.parada text { fill: var(--halo); font-family: var(--f-mono); font-weight: 500; font-size: 9.5px; text-anchor: middle; }
+
+.popover {
+  position: absolute; z-index: 3; width: 290px; max-width: calc(100% - 16px);
+  background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-radius: 10px;
+  box-shadow: 0 10px 30px rgb(0 0 0 / .18); padding: 12px 14px; font-size: 13.5px;
+}
+.popover h4 { margin: 0; font-family: var(--f-display); font-size: 20px; line-height: 1.1; padding-right: 24px; }
+.popover h4 small { font-family: var(--f-body); font-weight: 400; font-size: 13px; color: var(--muted); }
+.popover p { margin: 6px 0 0; }
+.popover ul { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 4px; }
+.popover li { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px; align-items: baseline; }
+.popover .cerrar { position: absolute; top: 6px; right: 6px; border: 0; background: none; cursor: pointer; font-size: 18px; line-height: 1; padding: 4px 6px; color: var(--muted); }
+
+.leyenda { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 12.5px; color: var(--muted); }
+.leyenda span { display: inline-flex; align-items: center; gap: 6px; }
+.leyenda svg { flex: none; }
+
+/* Panel */
+.pestanas { display: flex; flex-wrap: wrap; gap: 4px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 4px; }
+.pestanas button {
+  flex: 1 1 auto; cursor: pointer; border: 0; background: none; border-radius: 7px; padding: 6px 10px;
+  font-family: var(--f-display); font-weight: 600; font-size: 15px; letter-spacing: .02em; color: var(--muted);
+}
+.pestanas button[aria-selected="true"] { background: var(--accent); color: var(--accent-ink); }
+.pestanas button:hover:not([aria-selected="true"]) { color: var(--ink); background: var(--surface-2); }
+
+#panel { display: grid; gap: 12px; min-width: 0; }
+.bloque { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; display: grid; gap: 10px; min-width: 0; }
+.bloque > * { margin: 0; }
+.bloque h2 { font-family: var(--f-display); font-weight: 700; font-size: 22px; line-height: 1.1; text-wrap: balance; }
+.bloque h3 { font-family: var(--f-display); font-weight: 700; font-size: 19px; line-height: 1.15; display: flex; align-items: center; gap: 8px; }
+.bloque h3 .marca { width: 12px; height: 12px; border-radius: 3px; background: var(--c); flex: none; }
+.nota { color: var(--muted); font-size: 13.5px; }
+.formula { font-family: var(--f-mono); font-size: 12.5px; background: var(--surface-2); border-radius: 8px; padding: 10px 12px; overflow-x: auto; white-space: pre; line-height: 1.6; }
+
+.tr-cab { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; align-items: start; }
+.tr-cab .marca { width: 6px; align-self: stretch; border-radius: 3px; background: var(--c); }
+.tr-cab h3 { margin: 0; }
+.tr-cab p { margin: 0; color: var(--muted); font-size: 13.5px; }
+.pill { display: inline-block; padding: 1px 9px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; border: 1px solid currentColor; }
+.pill.ok { color: var(--ok); }
+.pill.espera { color: var(--wait); }
+
+.medidores { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.medidor { display: grid; gap: 4px; }
+.medidor .fila { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; color: var(--muted); }
+.medidor .fila b { color: var(--ink); font-family: var(--f-mono); font-weight: 500; font-variant-numeric: tabular-nums; }
+.barra { height: 8px; border-radius: 4px; background: var(--surface-2); border: 1px solid var(--line); overflow: hidden; }
+.barra i { display: block; height: 100%; background: var(--c); }
+
+.cifras { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 0; }
+.cifras div { min-width: 0; }
+.cifras dt { font-size: 12px; color: var(--muted); }
+.cifras dd { margin: 0; font-family: var(--f-mono); font-size: 14px; font-variant-numeric: tabular-nums; }
+
+.itinerario { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; font-size: 13.5px; }
+.itinerario li { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 3px 0; border-top: 1px dashed var(--line); }
+.itinerario li:first-child { border-top: 0; }
+.itinerario .num { width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; background: var(--c); color: var(--halo); font-family: var(--f-mono); font-size: 11px; }
+.itinerario .num.base { background: var(--ink); color: var(--bg); }
+.itinerario .t { font-family: var(--f-mono); font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; text-align: right; }
+
+.ajustes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; padding-top: 10px; border-top: 1px solid var(--line); }
+.campo { display: grid; gap: 3px; font-size: 12px; color: var(--muted); min-width: 0; }
+.campo input, .campo select {
+  width: 100%; min-width: 0; padding: 6px 8px; border-radius: 6px; border: 1px solid var(--line); background: var(--bg);
+  color: var(--ink); font-size: 14px; font-family: var(--f-mono);
+}
+.campo select { font-family: var(--f-body); }
+
+.form-paquete { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1.3fr) minmax(0, .8fr) minmax(0, .8fr); gap: 8px; align-items: end; }
+.form-paquete .acciones { grid-column: 1 / -1; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.boton {
+  cursor: pointer; border: 0; border-radius: 7px; padding: 7px 14px; background: var(--accent); color: var(--accent-ink);
+  font-family: var(--f-display); font-weight: 600; font-size: 15px; letter-spacing: .03em;
+}
+.boton.claro { background: var(--surface-2); color: var(--ink); border: 1px solid var(--line); }
+.boton:disabled { opacity: .45; cursor: not-allowed; }
+.error { color: var(--r-oriental); font-size: 13px; }
+
+.tabla-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th, td { padding: 6px 8px; text-align: left; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-family: var(--f-display); font-weight: 600; font-size: 13px; letter-spacing: .04em; color: var(--muted); background: var(--surface-2); white-space: nowrap; position: sticky; top: 0; }
+tbody tr:last-child td { border-bottom: 0; }
+td.num, th.num { text-align: right; font-family: var(--f-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+td .sub { display: block; color: var(--muted); font-size: 12px; }
+tr.no td { color: var(--muted); }
+tr.elegida td { background: color-mix(in srgb, var(--overprint) 9%, transparent); }
+.ok-txt { color: var(--ok); font-weight: 600; }
+.espera-txt { color: var(--wait); font-weight: 600; }
+.ruta-tag { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.ruta-tag i { width: 8px; height: 8px; border-radius: 50%; background: var(--c); }
+.quitar { cursor: pointer; border: 1px solid var(--line); background: none; border-radius: 5px; padding: 1px 7px; font-size: 12px; color: var(--muted); }
+.quitar:hover { color: var(--r-oriental); border-color: var(--r-oriental); }
+.camino { font-size: 12px; color: var(--muted); }
+
+.comparacion { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.comparacion div { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; display: grid; }
+.comparacion div.gana { border-color: var(--overprint); }
+.comparacion span { font-size: 12px; color: var(--muted); }
+.comparacion b { font-family: var(--f-mono); font-weight: 500; font-size: 17px; }
+.comparacion small { color: var(--muted); font-size: 12px; }
+
+.selector { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.resultado { border-left: 3px solid var(--overprint); padding: 6px 0 6px 12px; display: grid; gap: 2px; }
+.resultado b { font-family: var(--f-mono); font-weight: 500; font-size: 20px; }
+.resultado span { color: var(--muted); font-size: 13.5px; }
+
+.paso-nav { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.paso-nav .cont { font-family: var(--f-mono); font-size: 13px; color: var(--muted); margin-right: auto; }
+.rutas-elegir { display: flex; flex-wrap: wrap; gap: 6px; }
+
+details summary { cursor: pointer; font-weight: 600; }
+pre.codigo { margin: 0; font-family: var(--f-mono); font-size: 12px; line-height: 1.55; background: var(--surface-2); border-radius: 8px; padding: 12px; overflow-x: auto; tab-size: 2; }
+
+.pie { color: var(--muted); font-size: 12.5px; max-width: 90ch; }
+
+@media (max-width: 1120px) {
+  .tablero { grid-template-columns: minmax(0, 1fr); }
+  .col-mapa { position: static; }
+}
+@media (max-width: 880px) {
+  .cabecera { grid-template-columns: minmax(0, 1fr); }
+  .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .kpi + .kpi { border-left: 0; }
+  .kpi { border-top: 1px solid var(--line); }
+  .kpi:nth-child(-n+2) { border-top: 0; }
+  .kpi:nth-child(even) { border-left: 1px solid var(--line); }
+  .kpi:last-child:nth-child(odd) { grid-column: 1 / -1; }
+}
+@media (max-width: 560px) {
+  .flujo { grid-template-columns: minmax(0, 1fr); }
+  .form-paquete, .ajustes, .selector, .medidores, .cifras { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .form-paquete .ancho { grid-column: 1 / -1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ruta { transition: none; }
+}
+</style>
+<style>body{margin:0}[hidden]{display:none!important}</style>
+</head>
+<body>
+
+
+<div class="pagina">
+  <header class="cabecera">
+    <div>
+      <p class="eyebrow">Simulación de logística marítima · Puerto base: Cartagena</p>
+      <h1>Naviera Pelícano <em>entregas por el Caribe</em></h1>
+      <p class="bajada">Cuatro buques zarpan de Cartagena con paquetes para once puertos. La <b>mochila 0/1</b> decide qué sube a cada buque sin pasarse del número ni del peso máximo, el <b>vecino más cercano</b> ordena las paradas y <b>Dijkstra</b> encuentra el camino más corto por las rutas marítimas.</p>
+    </div>
+    <ol class="flujo" aria-label="Cómo se planifica un zarpe">
+      <li><button type="button" data-ir="mochila"><span class="n">Paso 1</span><span class="t">Cargar</span><span class="d">Mochila 0/1: la carga de mayor valor que cabe en cada buque.</span></button></li>
+      <li><button type="button" data-ir="vecino"><span class="n">Paso 2</span><span class="t">Ordenar</span><span class="d">Vecino más cercano: siempre al puerto pendiente más próximo.</span></button></li>
+      <li><button type="button" data-ir="dijkstra"><span class="n">Paso 3</span><span class="t">Navegar</span><span class="d">Dijkstra: la distancia y el camino más corto entre puertos.</span></button></li>
+    </ol>
+  </header>
+
+  <section class="kpis" id="kpis" aria-label="Resumen del zarpe"></section>
+
+  <main class="tablero">
+    <section class="col-mapa" aria-label="Carta náutica">
+      <div class="mapa-barra">
+        <div class="chips" id="chips" role="group" aria-label="Filtrar por ruta"></div>
+        <div class="interruptores">
+          <button type="button" class="boton-sec" id="t-dist" aria-pressed="true">Millas por tramo</button>
+          <button type="button" class="boton-sec" id="t-animar" aria-pressed="true">Barcos en movimiento</button>
+        </div>
+      </div>
+      <div class="mapa-marco">
+        <div class="mapa-scroll">
+          <div class="mapa-lienzo" id="lienzo">
+            <svg id="mapa" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Carta náutica del mar Caribe con los puertos y las rutas de la naviera">
+              <g id="g-base"></g>
+              <g id="g-conex"></g>
+              <g id="g-rutas"></g>
+              <g id="g-resalte"></g>
+              <g id="g-puertos"></g>
+              <g id="g-barcos"></g>
+            </svg>
+            <div class="popover" id="popover" hidden></div>
+          </div>
+        </div>
+      </div>
+      <div class="leyenda" id="leyenda">
+        <span><svg width="22" height="8" aria-hidden="true"><line x1="1" y1="4" x2="21" y2="4" stroke="var(--grid-ink)" stroke-dasharray="2 3"/></svg>Ruta marítima (arista del grafo)</span>
+        <span><svg width="22" height="8" aria-hidden="true"><line x1="1" y1="4" x2="21" y2="4" stroke="var(--overprint)" stroke-width="3"/></svg>Camino resaltado (Dijkstra / paso actual)</span>
+        <span><svg width="14" height="14" aria-hidden="true"><circle cx="7" cy="7" r="5" fill="var(--sea)" stroke="var(--muted)" stroke-width="1.6"/></svg>Puerto sin entregas en este zarpe</span>
+        <span>Toca un puerto para ver sus paquetes</span>
+      </div>
+    </section>
+
+    <section class="col-panel" aria-label="Mesa de control">
+      <nav class="pestanas" role="tablist" id="pestanas">
+        <button type="button" role="tab" data-pestana="rutas">Rutas</button>
+        <button type="button" role="tab" data-pestana="paquetes">Paquetes</button>
+        <button type="button" role="tab" data-pestana="mochila">Mochila</button>
+        <button type="button" role="tab" data-pestana="vecino">Vecino cercano</button>
+        <button type="button" role="tab" data-pestana="dijkstra">Dijkstra</button>
+        <button type="button" role="tab" data-pestana="codigo">Código</button>
+      </nav>
+      <div id="panel" role="tabpanel"></div>
+    </section>
+  </main>
+
+  <p class="pie">Distancias en millas náuticas (mn), calculadas con la fórmula del haversine sobre las rutas trazadas en la carta; 1 nudo = 1 mn por hora. Costas: Natural Earth (dominio público). Paquetes, buques y la naviera son datos de ejemplo para la actividad de clase. Los cambios que hagas se guardan solo en este navegador.</p>
+</div>
+
+<script>
+/* =====================================================================
+   1. DATOS DEL PROBLEMA
+   ===================================================================== */
+
+// Puertos (nodos del grafo). lon/lat en grados; "etiqueta" = lado donde se escribe el nombre en la carta.
+const PUERTOS = [
+  { id: 'CTG', nombre: 'Cartagena',     pais: 'Colombia',            lon: -75.55, lat: 10.40, etiqueta: 'w' },
+  { id: 'BAQ', nombre: 'Barranquilla',  pais: 'Colombia',            lon: -74.85, lat: 11.08, etiqueta: 'nw' },
+  { id: 'SMR', nombre: 'Santa Marta',   pais: 'Colombia',            lon: -74.22, lat: 11.25, etiqueta: 'ne' },
+  { id: 'COL', nombre: 'Colón',         pais: 'Panamá',              lon: -79.91, lat: 9.37,  etiqueta: 's' },
+  { id: 'LIM', nombre: 'Puerto Limón',  pais: 'Costa Rica',          lon: -83.03, lat: 9.99,  etiqueta: 'w' },
+  { id: 'KIN', nombre: 'Kingston',      pais: 'Jamaica',             lon: -76.80, lat: 17.95, etiqueta: 's' },
+  { id: 'HAV', nombre: 'La Habana',     pais: 'Cuba',                lon: -82.36, lat: 23.15, etiqueta: 'n' },
+  { id: 'SDQ', nombre: 'Santo Domingo', pais: 'República Dominicana', lon: -69.88, lat: 18.46, etiqueta: 's' },
+  { id: 'SJU', nombre: 'San Juan',      pais: 'Puerto Rico',         lon: -66.11, lat: 18.47, etiqueta: 'n' },
+  { id: 'WIL', nombre: 'Willemstad',    pais: 'Curazao',             lon: -68.93, lat: 12.11, etiqueta: 'n' },
+  { id: 'LGU', nombre: 'La Guaira',     pais: 'Venezuela',           lon: -66.93, lat: 10.60, etiqueta: 's' },
+  { id: 'BGI', nombre: 'Bridgetown',    pais: 'Barbados',            lon: -59.62, lat: 13.10, etiqueta: 's' },
+];
+const BASE = 'CTG';
+
+// Rutas marítimas (aristas del grafo, no dirigidas). "via" son puntos de paso para rodear la costa.
+const CONEXIONES = [
+  { a: 'CTG', b: 'BAQ', via: [[-75.66, 10.66], [-75.2, 11.08]] },
+  { a: 'BAQ', b: 'SMR', via: [[-74.55, 11.2]] },
+  { a: 'CTG', b: 'COL', via: [[-76.3, 10.2], [-78.6, 9.85], [-79.72, 9.68]] },
+  { a: 'COL', b: 'LIM', via: [[-81.0, 9.72], [-82.55, 10.12]] },
+  { a: 'CTG', b: 'KIN', via: [] },
+  { a: 'SMR', b: 'KIN', via: [] },
+  { a: 'COL', b: 'KIN', via: [] },
+  { a: 'KIN', b: 'HAV', via: [[-76.8, 17.78], [-77.3, 17.55], [-78.5, 17.75], [-82.8, 19.4], [-85.35, 21.75], [-84.9, 22.6], [-83.6, 23.28]] },
+  { a: 'LIM', b: 'HAV', via: [[-82.55, 11.6], [-82.2, 14.6], [-83.4, 17.5], [-85.35, 21.75], [-84.9, 22.6], [-83.6, 23.28]] },
+  { a: 'KIN', b: 'SDQ', via: [[-76.78, 17.8], [-76.3, 17.7], [-75.6, 17.65], [-73.6, 17.6], [-71.3, 17.3]] },
+  { a: 'SDQ', b: 'SJU', via: [[-68.8, 17.9], [-68.0, 18.25], [-67.3, 18.7]] },
+  { a: 'SDQ', b: 'WIL', via: [] },
+  { a: 'SMR', b: 'WIL', via: [[-72.6, 12.35], [-71.55, 12.75], [-70.0, 12.85], [-69.3, 12.25]] },
+  { a: 'WIL', b: 'LGU', via: [] },
+  { a: 'LGU', b: 'BGI', via: [[-64.2, 11.4], [-61.6, 11.75]] },
+  { a: 'SJU', b: 'BGI', via: [[-65.5, 18.65], [-64.0, 18.6], [-62.3, 15.0], [-60.95, 14.27]] },
+];
+
+// Rutas de la naviera: cada una tiene un buque, los puertos que atiende y su capacidad.
+const RUTAS_BASE = [
+  { id: 'costera',  nombre: 'Ruta Costera',   buque: 'Ciénaga I',      puertos: ['BAQ', 'SMR'],               maxPaquetes: 4, pesoMax: 1500, nudos: 12 },
+  { id: 'istmo',    nombre: 'Ruta del Istmo', buque: 'Darién Express', puertos: ['COL', 'LIM'],               maxPaquetes: 5, pesoMax: 2000, nudos: 14 },
+  { id: 'antillas', nombre: 'Ruta Antillas',  buque: 'Gran Antillano', puertos: ['KIN', 'SDQ', 'SJU', 'HAV'], maxPaquetes: 6, pesoMax: 3000, nudos: 16 },
+  { id: 'oriental', nombre: 'Ruta Oriental',  buque: 'Sotavento',      puertos: ['WIL', 'LGU', 'BGI'],        maxPaquetes: 5, pesoMax: 2200, nudos: 14 },
+];
+
+// Paquetes: nombre, puerto destino, peso (kg) y valor del flete (US$). La ruta sale del destino.
+const PAQUETES_BASE = [
+  { codigo: 'PK-101', nombre: 'Café de origen',             destino: 'SMR', peso: 420, valor: 1850 },
+  { codigo: 'PK-102', nombre: 'Repuestos de motor',         destino: 'BAQ', peso: 780, valor: 2300 },
+  { codigo: 'PK-103', nombre: 'Medicamentos refrigerados',  destino: 'BAQ', peso: 150, valor: 2900 },
+  { codigo: 'PK-104', nombre: 'Textiles de algodón',        destino: 'SMR', peso: 380, valor: 900 },
+  { codigo: 'PK-105', nombre: 'Cacao en grano',             destino: 'BAQ', peso: 500, valor: 1400 },
+  { codigo: 'PK-106', nombre: 'Equipos de cómputo',         destino: 'SMR', peso: 240, valor: 2100 },
+  { codigo: 'PK-201', nombre: 'Flores frescas',             destino: 'COL', peso: 260, valor: 1700 },
+  { codigo: 'PK-202', nombre: 'Maquinaria agrícola',        destino: 'LIM', peso: 900, valor: 3100 },
+  { codigo: 'PK-203', nombre: 'Electrodomésticos',          destino: 'COL', peso: 540, valor: 1900 },
+  { codigo: 'PK-204', nombre: 'Insumos médicos',            destino: 'LIM', peso: 180, valor: 1500 },
+  { codigo: 'PK-205', nombre: 'Calzado de cuero',           destino: 'COL', peso: 330, valor: 1100 },
+  { codigo: 'PK-206', nombre: 'Paneles solares',            destino: 'LIM', peso: 620, valor: 2400 },
+  { codigo: 'PK-301', nombre: 'Repuestos navales',          destino: 'KIN', peso: 700, valor: 2600 },
+  { codigo: 'PK-302', nombre: 'Arroz empacado',             destino: 'HAV', peso: 850, valor: 1300 },
+  { codigo: 'PK-303', nombre: 'Medicinas genéricas',        destino: 'HAV', peso: 200, valor: 2800 },
+  { codigo: 'PK-304', nombre: 'Materiales de construcción', destino: 'SDQ', peso: 950, valor: 2000 },
+  { codigo: 'PK-305', nombre: 'Artesanías wayuu',           destino: 'SDQ', peso: 120, valor: 650 },
+  { codigo: 'PK-306', nombre: 'Equipos electrónicos',       destino: 'SJU', peso: 300, valor: 2500 },
+  { codigo: 'PK-307', nombre: 'Muebles de madera',          destino: 'KIN', peso: 640, valor: 1450 },
+  { codigo: 'PK-308', nombre: 'Confitería',                 destino: 'SJU', peso: 410, valor: 1150 },
+  { codigo: 'PK-401', nombre: 'Frutas tropicales',          destino: 'WIL', peso: 480, valor: 1350 },
+  { codigo: 'PK-402', nombre: 'Herramientas',               destino: 'LGU', peso: 560, valor: 1700 },
+  { codigo: 'PK-403', nombre: 'Cosméticos',                 destino: 'BGI', peso: 150, valor: 1900 },
+  { codigo: 'PK-404', nombre: 'Papel y cartón',             destino: 'LGU', peso: 720, valor: 980 },
+  { codigo: 'PK-405', nombre: 'Café especial',              destino: 'BGI', peso: 260, valor: 1600 },
+  { codigo: 'PK-406', nombre: 'Llantas',                    destino: 'WIL', peso: 680, valor: 1500 },
+];
+
+/* =====================================================================
+   2. ALGORITMOS
+   ===================================================================== */
+
+// Dijkstra: distancia mínima desde "origen" a todos los puertos del grafo.
+function dijkstra(grafo, origen) {
+  const dist = {}, previo = {}, fijados = new Set(), pasos = [];
+  for (const nodo in grafo) { dist[nodo] = Infinity; previo[nodo] = null; }
+  dist[origen] = 0;
+
+  while (fijados.size < Object.keys(grafo).length) {
+    // 1. Elegir el puerto no fijado con la menor distancia conocida
+    let u = null;
+    for (const nodo in grafo) {
+      if (!fijados.has(nodo) && (u === null || dist[nodo] < dist[u])) u = nodo;
+    }
+    if (dist[u] === Infinity) break; // lo que queda es inalcanzable
+    fijados.add(u);
+
+    // 2. Relajar las aristas: ¿llegar a un vecino pasando por u es más corto?
+    const cambios = [];
+    for (const { destino, millas } of grafo[u]) {
+      if (fijados.has(destino)) continue;
+      const nueva = dist[u] + millas;
+      if (nueva < dist[destino]) {
+        cambios.push({ nodo: destino, antes: dist[destino], despues: nueva });
+        dist[destino] = nueva;
+        previo[destino] = u;
+      }
+    }
+    pasos.push({ nodo: u, dist: dist[u], cambios });
+  }
+  return { dist, previo, pasos };
+}
+
+// Reconstruye el camino siguiendo los "previos" desde el destino hacia atrás.
+function reconstruirCamino(previo, destino) {
+  const camino = [];
+  for (let nodo = destino; nodo !== null; nodo = previo[nodo]) camino.unshift(nodo);
+  return camino;
+}
+
+// Vecino más cercano: desde el puerto actual, ir siempre al puerto pendiente más próximo.
+// "distancia" es la matriz de distancias mínimas que entrega Dijkstra.
+function vecinoMasCercano(origen, paradas, distancia) {
+  const pendientes = [...paradas];
+  const orden = [], pasos = [];
+  let actual = origen, total = 0;
+
+  while (pendientes.length > 0) {
+    const candidatos = pendientes
+      .map(puerto => ({ puerto, dist: distancia[actual][puerto] }))
+      .sort((x, y) => x.dist - y.dist);
+    const elegido = candidatos[0];
+    pasos.push({ desde: actual, candidatos, elegido: elegido.puerto });
+
+    total += elegido.dist;
+    orden.push(elegido.puerto);
+    pendientes.splice(pendientes.indexOf(elegido.puerto), 1);
+    actual = elegido.puerto;
+  }
+  const regreso = orden.length ? distancia[actual][origen] : 0; // volver al puerto base
+  return { orden, pasos, regreso, total: total + regreso };
+}
+
+// Mochila 0/1 con dos límites: peso máximo (kg) y cantidad máxima de paquetes.
+// V(i, w, k) = máx( V(i-1, w, k), valor_i + V(i-1, w - peso_i, k - 1) )
+function mochila(paquetes, pesoMax, maxPaquetes) {
+  const W = pesoMax, K = maxPaquetes, ancho = K + 1;
+  let V = new Float64Array((W + 1) * ancho); // V[w*ancho + k] = mejor valor con w kg y k paquetes
+  const toma = [];                           // toma[i] marca las celdas donde conviene llevar el paquete i
+
+  for (let i = 0; i < paquetes.length; i++) {
+    const { peso, valor } = paquetes[i];
+    const siguiente = V.slice();             // por defecto: NO llevar el paquete i
+    const marca = new Uint8Array((W + 1) * ancho);
+    for (let w = peso; w <= W; w++) {
+      for (let k = 1; k <= K; k++) {
+        const llevandolo = V[(w - peso) * ancho + (k - 1)] + valor;
+        if (llevandolo > siguiente[w * ancho + k]) {
+          siguiente[w * ancho + k] = llevandolo;
+          marca[w * ancho + k] = 1;
+        }
+      }
+    }
+    V = siguiente;
+    toma.push(marca);
+  }
+
+  // Reconstrucción: recorrer los paquetes hacia atrás y ver cuáles se tomaron
+  const elegidos = [];
+  let w = W, k = K;
+  for (let i = paquetes.length - 1; i >= 0; i--) {
+    if (toma[i][w * ancho + k]) {
+      elegidos.unshift(paquetes[i]);
+      w -= paquetes[i].peso;
+      k -= 1;
+    }
+  }
+  const peso = elegidos.reduce((s, p) => s + p.peso, 0);
+  return { elegidos, valor: V[W * ancho + K], peso };
+}
+
+// Referencia para comparar: método voraz que toma primero los paquetes más caros.
+function vorazPorValor(paquetes, pesoMax, maxPaquetes) {
+  const elegidos = [];
+  let peso = 0, valor = 0;
+  for (const p of [...paquetes].sort((a, b) => b.valor - a.valor)) {
+    if (elegidos.length < maxPaquetes && peso + p.peso <= pesoMax) {
+      elegidos.push(p); peso += p.peso; valor += p.valor;
+    }
+  }
+  return { elegidos, peso, valor };
+}
+
+// Referencia para comparar: mejor orden posible probando todas las permutaciones (pocas paradas).
+function mejorOrden(origen, paradas, distancia) {
+  if (paradas.length > 8) return null;
+  let mejor = { total: Infinity, orden: [] };
+  const probar = (actual, resto, orden, acumulado) => {
+    if (acumulado >= mejor.total) return;
+    if (!resto.length) {
+      const total = acumulado + (orden.length ? distancia[actual][origen] : 0);
+      if (total < mejor.total) mejor = { total, orden: [...orden] };
+      return;
+    }
+    resto.forEach((p, i) => probar(p, resto.filter((_, j) => j !== i), [...orden, p], acumulado + distancia[actual][p]));
+  };
+  probar(origen, paradas, [], 0);
+  return mejor;
+}
+
+/* =====================================================================
+   3. GEOMETRÍA DE LA CARTA
+   ===================================================================== */
+
+const LAND = {"w":1000,"h":633.6,"d":"M328.8 685.7L325.5 685.5L326.7 684.6L327.8 682.4L330.8 681.2L333.3 681.7L333.8 680.0L335.5 679.0L336.4 677.5L336.3 675.7L334.0 671.9L332.7 667.5L332.2 668.4L328.1 661.8L328.3 657.9L330.6 660.0L331.7 657.9L331.8 656.1L331.1 654.9L331.9 654.3L332.4 654.8L331.7 652.9L332.9 648.7L330.6 646.2L330.7 644.3L328.8 643.3L327.3 644.0L327.2 645.1L326.2 645.3L326.5 643.6L324.4 639.6L321.6 637.8L320.8 638.9L320.6 636.5L322.4 634.5L320.8 631.1L320.8 632.0L317.7 628.5L316.3 627.9L315.7 626.8L313.2 625.2L310.1 622.1L309.8 620.0L309.1 620.0L308.8 619.0L308.1 619.1L306.2 617.4L305.0 615.3L304.6 615.8L304.4 613.6L303.6 613.7L303.5 614.4L303.3 612.3L300.3 609.6L300.8 608.0L299.0 604.3L296.7 601.7L295.3 596.8L296.3 595.3L296.7 596.4L299.2 596.8L301.6 594.8L302.1 592.8L299.8 590.0L301.5 589.8L301.0 589.0L301.5 588.6L302.6 589.4L303.5 589.3L305.5 584.7L306.1 586.5L308.6 587.6L310.2 590.6L311.7 590.6L312.8 591.5L313.3 591.2L311.6 590.0L314.3 590.7L315.9 592.0L316.2 593.2L317.3 593.3L318.0 594.8L319.4 594.3L318.4 594.3L313.9 590.1L309.6 588.8L308.0 584.8L308.6 584.3L307.1 582.9L307.4 581.0L306.4 580.5L306.1 579.5L305.7 579.3L305.9 580.5L306.7 581.2L307.1 584.5L305.9 582.9L304.9 582.6L303.9 584.7L302.0 585.5L301.6 584.5L303.4 584.0L302.6 580.0L302.1 580.5L302.9 581.4L302.6 583.6L302.1 583.8L301.5 583.1L302.0 581.9L301.5 581.4L300.8 583.3L300.2 583.4L299.5 581.9L297.7 584.0L296.9 580.2L296.4 580.5L296.3 579.7L297.1 584.0L297.9 585.1L296.9 587.2L294.8 585.2L294.6 583.1L294.1 584.0L293.6 583.2L293.7 581.2L292.0 578.8L293.7 578.8L293.1 578.3L293.0 576.7L290.8 576.2L291.1 575.4L289.5 575.7L289.0 575.1L289.1 571.9L289.0 573.6L287.9 574.1L286.9 572.8L285.1 572.4L284.3 570.0L282.8 568.7L282.9 570.1L281.4 570.4L280.2 567.8L273.0 564.4L273.1 561.8L272.1 561.1L273.5 560.7L274.1 559.7L275.0 560.1L276.7 558.9L274.8 559.9L274.1 559.4L271.7 561.1L272.8 562.7L271.9 564.2L269.9 563.2L269.2 563.8L261.2 563.5L259.2 564.0L258.0 565.1L257.5 566.1L258.2 567.6L256.3 565.4L256.5 567.7L253.6 568.1L253.2 569.0L251.6 568.5L251.9 569.2L250.6 569.4L249.9 570.4L250.1 574.5L247.4 576.6L249.0 577.3L251.6 575.9L251.7 576.5L249.1 578.6L246.0 579.6L245.8 580.6L243.7 581.8L242.4 583.4L237.1 586.7L232.0 588.6L229.9 588.8L228.0 588.0L225.2 591.2L224.7 596.0L225.7 597.6L229.4 599.2L231.0 602.9L236.5 607.4L239.6 611.5L241.6 615.4L240.8 617.7L236.7 618.8L234.1 619.1L232.5 618.4L230.8 618.8L232.5 618.8L229.0 620.4L229.4 622.5L228.0 622.9L226.3 625.1L211.3 626.2L210.8 625.3L209.3 624.7L210.7 621.1L209.7 620.0L210.0 618.3L208.0 615.9L208.8 614.3L207.7 613.1L207.9 612.7L205.4 610.6L205.9 609.7L206.7 609.8L205.3 608.7L205.9 607.7L204.9 607.6L204.0 606.5L204.8 605.3L206.2 605.0L206.2 604.6L205.2 605.0L205.1 601.9L203.8 603.8L203.2 603.1L203.8 604.3L200.2 603.6L200.0 602.6L199.4 602.4L199.9 602.7L199.5 603.3L200.8 604.2L201.2 606.2L199.4 608.4L199.4 607.4L198.4 607.4L199.4 608.6L198.4 608.6L198.9 609.3L200.1 608.9L200.2 609.3L200.2 611.4L199.4 612.4L196.9 611.0L192.3 610.3L191.4 609.1L188.8 608.9L188.7 608.4L190.0 607.6L188.7 607.2L188.3 607.9L187.1 607.2L187.3 606.6L186.6 605.6L187.3 603.9L186.2 603.9L186.2 602.9L185.5 602.7L185.7 601.2L186.3 601.5L185.7 600.5L186.0 599.3L185.2 599.5L185.1 600.7L183.1 596.9L182.8 598.1L182.5 597.8L181.9 596.2L183.6 596.5L181.1 592.2L180.6 592.9L181.0 593.6L180.0 594.5L174.0 592.2L174.8 590.7L173.2 592.2L171.9 591.2L170.3 591.5L168.4 590.7L167.5 593.3L167.0 593.3L167.5 591.5L166.0 591.9L164.8 591.2L165.3 590.7L164.8 588.2L166.1 586.9L164.6 587.0L164.1 588.3L162.9 588.0L162.7 586.9L160.4 587.2L160.6 588.1L158.6 588.8L157.5 588.2L158.0 587.6L157.5 586.5L156.4 587.9L156.8 589.0L156.2 589.2L149.7 587.6L144.5 588.6L142.6 590.0L142.1 591.2L142.3 594.1L143.1 596.5L142.1 598.0L141.0 597.3L141.4 595.2L139.0 591.2L132.7 586.0L134.7 583.3L133.2 580.9L134.4 579.7L132.2 579.2L131.8 577.3L132.7 578.7L133.7 578.0L132.1 576.6L129.6 577.1L129.0 576.2L127.0 575.5L126.5 573.7L124.8 573.0L123.4 573.9L121.3 574.0L121.2 574.7L121.6 574.5L124.0 578.3L128.0 580.0L127.7 581.6L128.5 583.6L128.0 585.7L124.8 584.7L124.3 584.3L125.2 584.5L124.0 583.8L124.0 584.3L122.0 583.4L118.0 583.3L112.6 578.2L112.5 577.1L113.5 575.5L114.9 575.0L116.3 572.1L118.0 571.4L116.9 571.1L115.8 571.6L117.8 569.3L116.7 567.8L118.0 568.3L116.2 567.1L117.2 565.1L116.1 562.4L112.8 558.9L111.5 558.7L111.6 557.8L110.8 557.0L109.0 556.3L106.3 553.7L97.3 550.1L97.7 549.4L96.3 547.7L95.5 547.4L96.3 548.1L95.5 548.0L87.6 545.6L85.0 545.8L84.3 544.7L83.8 544.5L84.0 545.1L82.2 543.8L80.6 541.2L80.1 541.2L80.1 539.8L81.6 536.6L78.4 533.1L78.9 531.7L78.1 531.0L78.2 530.2L74.1 530.2L76.2 529.5L72.5 528.5L68.5 524.9L66.3 524.2L66.7 523.6L65.9 523.0L62.9 523.2L61.7 522.7L60.8 521.8L61.1 520.9L59.0 519.1L60.4 521.4L61.2 524.6L60.7 525.5L63.7 527.5L62.6 527.8L66.3 530.1L69.1 531.1L70.4 530.9L72.0 532.1L71.4 533.0L72.2 534.0L71.2 534.7L73.6 535.0L70.6 537.6L70.4 538.6L68.8 538.0L69.1 539.4L66.8 540.7L65.2 544.5L58.6 535.7L53.7 533.7L52.4 534.2L50.9 533.3L46.0 532.5L45.7 530.6L42.1 526.2L39.3 518.9L40.1 518.1L38.8 516.6L40.3 514.6L41.0 514.8L42.2 513.3L41.1 511.0L41.9 510.0L42.7 510.4L44.8 509.8L45.5 508.3L47.2 507.2L46.4 506.4L44.8 507.6L45.8 506.6L45.3 506.4L46.0 505.2L46.0 501.7L44.3 500.6L42.4 500.8L41.3 499.6L41.6 499.2L36.4 497.7L39.3 496.6L38.7 495.8L40.8 495.8L41.6 497.3L41.9 496.1L44.4 496.4L44.9 494.5L43.2 493.1L44.2 492.5L45.5 492.9L45.8 492.0L41.8 490.0L41.3 488.1L37.0 483.0L34.6 481.8L26.1 473.8L22.8 472.5L21.5 470.4L17.4 467.2L12.8 460.0L10.7 457.9L7.8 451.8L-0.1 446.7L-3.5 443.9L-5.8 442.8L-6.0 442.0L-3.4 443.5L-5.5 441.8L-6.2 440.3L-6.1 441.6L-10.8 437.5L-11.4 436.2L-11.9 436.9L-15.7 432.5L-16.1 431.6L-15.4 431.8L-16.5 430.5L-18.0 429.9L-16.6 431.2L-17.0 431.5L-23.1 427.2L-23.6 425.3L-23.0 424.1L-20.2 421.8L-20.1 420.4L-20.1 421.4L-17.6 422.6L-15.0 426.2L-9.9 426.3L-13.0 425.7L-9.3 422.6L-10.9 422.2L-12.2 421.1L-12.1 420.3L-10.4 419.9L-14.4 419.5L-15.7 415.5L-17.6 413.3L-15.2 410.7L-13.0 410.2L-13.5 409.0L-15.4 408.6L-16.6 410.7L-18.9 410.8L-19.3 410.5L-18.8 410.2L-20.0 409.9L-21.4 410.2L-20.9 409.0L-21.5 408.5L-21.5 406.9L-22.7 407.8L-23.0 409.8L-24.8 410.7L-28.2 409.0L-28.9 407.8L-30.2 410.5L-27.2 413.3L-28.2 414.6L-31.4 416.4L-30.8 417.5L-32.0 417.8L-37.9 417.2L-45.7 417.5L-46.7 417.2L-45.8 417.0L-45.8 416.5L-46.8 415.3L-46.2 416.5L-48.1 416.6L-47.1 417.1L-48.8 417.4L-49.7 416.0L-49.2 416.3L-48.8 415.6L-50.4 414.1L-50.2 415.8L-51.7 415.3L-51.7 416.1L-50.2 417.1L-50.4 417.5L-51.7 417.0L-51.7 -57.2L237.0 -57.2L237.5 -56.0L237.0 -44.8L237.0 -49.1L236.5 -49.6L235.2 -47.9L234.6 -43.9L232.8 -42.7L231.8 -39.8L230.8 -38.8L230.6 -36.2L229.5 -34.0L230.1 -31.9L229.6 -30.6L230.6 -29.8L226.8 -24.8L226.7 -23.6L227.5 -22.3L225.8 -24.5L224.2 -23.6L225.6 -23.2L225.8 -21.8L225.2 -23.1L223.9 -22.8L223.2 -23.6L223.9 -24.1L223.7 -24.6L221.8 -24.6L220.5 -22.4L220.2 -22.8L218.7 -22.5L218.7 -21.2L218.0 -21.6L216.9 -20.7L215.0 -21.2L214.8 -20.7L214.0 -21.2L213.6 -20.8L211.9 -22.3L210.0 -20.7L204.0 -19.8L201.7 -21.5L200.8 -23.9L201.8 -27.8L202.5 -28.3L202.2 -27.8L204.2 -25.6L207.4 -24.1L206.7 -23.6L207.3 -23.1L209.4 -23.7L209.5 -25.2L207.6 -27.4L203.6 -28.6L202.0 -29.9L201.0 -33.3L199.5 -35.3L200.5 -36.6L198.9 -36.7L197.2 -42.1L195.8 -42.2L194.5 -43.9L195.8 -45.1L194.9 -46.4L190.2 -49.6L189.7 -49.0L187.4 -50.3L186.6 -49.8L186.8 -50.2L185.5 -51.4L184.5 -50.3L183.1 -50.9L182.6 -49.8L182.0 -50.0L181.2 -51.8L183.0 -51.1L184.0 -52.7L182.0 -53.0L180.1 -57.2L-51.7 -57.2L-51.7 114.1L-49.9 113.4L-47.2 113.4L-44.8 114.1L-39.6 112.8L-37.4 112.9L-39.7 112.5L-42.6 113.5L-39.0 111.9L-33.2 112.5L-24.5 114.8L-25.5 115.3L-29.8 114.1L-26.8 115.8L-21.6 116.2L-21.1 116.0L-23.8 115.3L-21.4 115.5L-17.3 116.2L-16.4 116.9L-17.3 116.9L-17.0 117.3L-14.0 117.3L-8.8 118.4L-5.3 116.9L-4.5 115.5L-4.7 113.8L-6.1 113.6L-8.8 115.1L-11.4 115.0L-11.7 114.1L-13.9 115.8L-14.3 115.0L-12.5 113.5L-9.4 114.0L-3.9 111.6L-0.9 112.8L3.1 118.6L5.9 118.6L6.6 121.0L6.1 122.9L6.3 127.1L7.2 128.8L8.9 128.6L7.2 132.3L7.4 133.4L5.9 134.2L4.3 140.1L-2.0 148.3L-8.1 153.4L-12.5 160.7L-13.3 161.1L-13.0 161.7L-14.9 163.4L-16.3 169.0L-16.1 172.1L-14.9 175.2L-16.5 179.4L-16.6 177.5L-15.4 176.6L-15.3 174.7L-16.8 172.9L-16.4 176.1L-15.7 175.6L-18.1 178.7L-19.0 178.2L-20.0 178.9L-23.0 184.9L-23.5 184.9L-22.7 184.1L-22.7 183.1L-25.6 183.5L-25.2 186.2L-23.8 187.3L-22.7 187.3L-23.2 189.6L-19.5 187.3L-17.5 188.1L-17.1 187.3L-15.7 187.6L-16.1 188.1L-15.3 187.8L-14.7 186.5L-15.2 186.4L-15.3 187.1L-18.3 186.6L-15.4 186.8L-15.2 184.9L-14.3 187.0L-15.8 191.5L-18.4 193.4L-19.6 193.6L-18.5 192.1L-21.2 193.3L-22.6 194.4L-23.0 195.9L-22.4 195.1L-23.3 196.7L-22.7 196.9L-23.7 199.3L-22.4 200.1L-19.5 196.5L-17.1 196.1L-17.8 197.7L-16.6 196.4L-15.9 196.6L-17.1 197.5L-18.4 199.8L-19.3 202.4L-18.9 203.2L-20.9 207.3L-22.9 216.6L-25.5 221.1L-25.5 225.0L-26.3 228.8L-29.1 234.4L-29.2 237.3L-29.6 235.5L-30.2 236.3L-30.7 235.6L-29.8 232.5L-30.5 233.8L-30.3 232.1L-31.0 230.3L-32.3 230.0L-32.3 228.4L-37.1 226.3L-37.3 225.2L-36.0 223.6L-36.3 222.8L-34.5 219.4L-35.0 219.0L-34.6 215.8L-35.8 212.6L-38.1 215.3L-38.9 217.9L-39.4 217.9L-39.1 216.5L-43.1 219.1L-43.3 219.9L-42.6 219.6L-41.0 217.6L-41.2 219.9L-40.4 219.0L-39.7 219.1L-44.2 226.6L-44.9 226.9L-44.3 227.6L-47.9 231.0L-47.1 231.6L-45.4 230.8L-46.8 233.5L-44.0 231.4L-41.2 232.1L-37.6 230.9L-39.5 233.2L-37.6 232.5L-37.4 236.8L-37.7 240.7L-39.6 245.5L-41.7 248.7L-41.8 252.7L-44.5 258.8L-42.0 261.5L-40.2 262.1L-40.7 262.8L-42.8 263.0L-44.7 272.0L-44.1 277.3L-42.6 278.3L-41.8 281.8L-44.1 284.0L-44.1 285.2L-43.0 287.1L-44.5 287.9L-44.9 289.2L-45.1 293.1L-45.9 294.2L-46.3 297.7L-46.8 298.4L-47.1 297.8L-46.1 293.8L-45.2 292.8L-46.1 293.2L-47.8 296.5L-47.1 296.7L-48.1 296.7L-47.3 297.2L-47.8 298.9L-51.7 304.2L-51.7 322.2L-51.3 322.1L-51.7 320.1L-39.5 327.9L-35.8 324.8L-35.9 324.2L-34.3 324.3L-32.2 323.1L-31.9 322.2L-32.8 321.4L-26.2 320.1L-25.0 319.4L-21.6 320.6L-22.0 320.0L-20.4 318.9L-21.2 320.3L-16.5 324.3L-11.9 322.0L-5.2 323.8L2.8 325.2L6.9 324.3L7.9 323.5L10.4 324.1L18.2 323.6L21.6 324.8L28.5 320.6L35.5 319.8L37.9 317.2L37.2 316.5L34.0 315.8L34.3 315.4L44.7 317.4L45.3 318.9L46.3 318.4L48.0 319.9L52.1 321.2L60.2 320.8L66.4 317.1L69.0 317.0L80.1 321.0L80.6 321.4L79.9 324.0L80.7 324.6L82.2 324.4L82.4 323.4L83.7 324.3L87.0 324.5L87.9 323.9L83.5 322.9L81.3 321.5L93.3 323.4L107.1 335.0L112.6 337.7L112.8 338.3L112.1 338.5L108.2 336.3L106.6 336.2L106.3 335.8L106.8 335.6L105.3 333.8L104.6 334.1L103.3 333.2L101.5 334.1L100.4 333.6L101.0 332.7L99.9 332.7L100.8 334.8L100.4 335.1L98.9 332.7L96.1 332.7L97.2 333.9L97.1 335.1L98.4 333.2L99.1 333.3L100.3 336.2L99.2 337.0L100.5 339.5L102.3 340.2L102.3 338.8L103.2 339.6L103.4 341.3L105.8 341.2L104.9 341.7L105.1 342.5L106.1 343.5L107.5 343.6L109.6 342.7L107.1 340.8L103.4 339.5L102.3 338.0L103.6 337.3L106.8 338.7L107.4 339.7L110.2 341.2L109.9 342.4L111.2 342.2L111.7 345.1L112.2 344.4L112.7 345.1L114.1 343.5L116.1 343.2L116.4 341.8L119.8 342.2L119.5 344.8L117.6 343.9L116.4 345.4L116.9 346.0L117.4 344.9L118.2 346.6L121.3 344.6L120.2 342.0L117.6 341.2L116.9 341.5L116.9 340.7L113.0 339.0L113.7 338.0L119.2 341.1L123.9 342.8L125.6 344.1L128.1 349.9L133.4 352.5L132.2 353.4L131.7 352.8L131.3 353.3L127.9 359.3L126.6 359.8L127.2 359.2L126.6 358.4L128.0 358.6L127.4 355.5L126.9 355.4L125.1 356.5L123.3 359.3L123.8 358.9L124.3 359.2L124.9 361.0L126.2 361.9L126.9 361.3L125.6 360.5L126.5 360.4L127.1 361.3L127.1 360.5L127.6 360.5L131.3 374.2L131.3 376.8L125.9 386.2L124.3 387.4L123.0 389.5L120.0 401.3L120.0 404.6L118.7 408.7L118.3 414.9L120.4 426.9L119.3 438.3L121.2 442.1L121.3 444.1L120.3 444.9L116.7 445.5L115.9 445.1L117.2 444.2L116.1 442.0L115.9 438.8L117.7 439.0L118.5 437.9L118.3 435.0L119.3 431.6L118.5 430.0L116.7 429.9L115.7 431.0L115.9 432.3L116.8 432.8L117.7 436.4L114.7 438.6L111.2 439.9L111.2 441.8L112.8 442.2L112.6 446.0L113.6 446.9L114.6 446.7L114.6 448.9L115.6 446.3L116.7 446.5L115.1 449.7L114.3 453.9L114.8 459.2L114.3 459.4L113.0 456.2L114.1 454.6L113.5 453.3L112.2 452.4L111.1 452.5L111.7 453.4L112.5 452.9L113.3 454.3L112.5 456.9L110.2 456.6L111.7 457.5L111.7 460.9L109.1 463.3L111.5 465.6L112.3 465.6L112.6 463.9L113.8 464.1L115.4 472.5L111.7 474.4L110.6 478.3L109.6 478.2L108.0 480.8L108.0 484.3L109.1 489.0L112.0 494.5L113.0 495.3L113.5 496.7L114.4 496.1L115.7 496.6L117.3 499.0L117.8 501.8L116.4 498.9L117.1 501.8L116.9 502.9L115.9 503.7L117.7 502.8L117.7 503.7L118.0 502.1L121.9 511.7L131.0 524.5L134.9 528.9L135.8 528.5L137.0 528.8L139.6 533.7L143.6 538.1L144.5 537.9L145.7 540.9L151.2 542.2L158.4 548.8L159.6 549.5L160.6 548.9L159.4 551.6L160.4 553.7L159.0 554.0L158.8 554.6L160.4 556.8L161.6 557.5L162.6 556.9L162.2 556.3L163.2 557.5L163.9 557.5L164.0 556.5L164.7 557.2L165.1 556.3L166.1 557.2L166.6 557.0L166.3 558.9L164.7 558.1L163.5 558.2L163.7 560.1L163.0 559.9L164.2 561.2L164.0 563.5L163.5 563.2L164.0 563.8L167.6 564.4L168.9 566.4L172.5 565.8L174.4 566.3L175.8 565.0L179.5 566.4L180.1 566.1L180.2 564.1L177.9 562.7L176.4 560.6L174.7 559.5L176.8 559.5L177.1 559.0L175.5 558.1L176.5 557.7L178.8 559.9L177.9 560.1L178.6 561.5L180.6 561.8L182.0 562.8L185.2 567.5L188.6 570.7L196.4 571.6L204.2 570.8L211.0 568.0L213.0 567.8L216.4 564.1L222.3 560.8L236.8 556.8L241.3 552.8L242.1 551.3L243.2 551.0L243.3 552.9L244.2 553.4L245.0 551.5L245.7 552.0L245.8 549.9L247.6 550.3L248.5 551.8L248.1 550.0L252.0 546.7L252.5 544.9L253.4 544.4L252.4 544.2L254.1 542.7L256.8 542.0L257.7 542.6L257.5 543.6L258.0 544.1L258.4 543.6L259.8 544.1L260.1 543.1L269.1 545.1L276.8 544.0L277.3 544.6L276.7 545.0L274.0 545.4L273.8 548.0L277.4 548.1L279.2 549.2L285.3 548.1L286.1 548.8L289.5 549.4L291.0 548.7L294.7 549.7L303.1 553.8L309.1 555.7L315.3 562.1L314.6 560.4L314.6 559.8L315.2 560.1L319.0 565.0L318.8 565.9L320.4 568.1L320.8 567.9L323.0 570.4L323.6 570.7L323.0 569.9L323.1 569.4L323.5 569.7L325.5 572.4L326.1 571.9L326.5 574.3L328.3 575.5L332.7 575.5L335.4 581.6L339.9 584.2L343.7 589.8L346.1 589.6L346.1 591.8L347.7 592.3L347.3 593.3L346.6 593.1L346.8 594.3L347.7 594.9L348.4 594.8L348.4 594.1L350.6 594.1L350.1 595.5L350.8 595.5L349.7 596.0L350.4 596.9L349.4 596.7L350.6 597.9L348.0 597.3L347.1 600.1L348.1 601.3L349.8 601.9L352.8 601.7L353.5 600.9L354.2 597.0L353.2 594.9L353.5 592.9L352.8 589.9L352.8 585.0L350.4 581.4L346.6 579.9L348.4 577.2L356.1 575.2L357.0 572.8L360.5 571.5L364.6 568.0L364.6 567.1L368.2 566.0L370.2 564.1L370.5 561.5L372.7 559.3L373.5 555.3L375.3 554.7L376.0 552.3L381.0 549.9L381.2 548.6L382.5 549.0L385.6 548.4L386.3 549.4L384.3 549.6L385.3 549.6L385.8 550.3L388.3 549.1L390.7 549.7L392.4 548.1L393.9 544.3L393.9 542.3L392.5 539.9L389.5 539.5L391.8 536.6L393.5 530.2L394.0 526.4L393.5 524.5L395.1 522.4L395.5 520.6L391.6 523.6L389.5 524.3L390.0 523.1L392.0 521.6L392.6 519.6L393.4 519.6L393.4 518.4L393.6 519.1L396.0 517.8L395.7 515.3L395.0 515.2L394.8 514.3L393.9 515.0L394.3 513.9L396.5 511.9L395.7 513.9L396.7 513.8L397.0 511.4L396.2 511.2L396.4 509.7L395.7 509.1L397.9 507.9L397.9 506.9L399.2 506.5L399.8 505.2L403.2 504.1L404.3 502.9L405.2 504.3L406.2 503.3L405.9 502.1L405.2 502.8L404.4 502.4L404.6 501.1L412.1 497.4L413.0 494.8L415.1 494.1L416.5 492.3L418.6 492.2L419.2 490.1L430.3 494.1L438.0 494.2L435.8 495.0L430.9 494.8L430.4 496.5L431.6 499.2L430.1 498.0L429.8 498.5L428.3 497.9L427.7 498.6L427.7 501.6L428.8 499.9L429.5 500.6L429.5 502.3L430.6 502.5L431.3 501.6L430.3 501.4L430.8 499.4L431.9 500.0L432.5 502.8L435.0 502.5L436.8 499.6L438.6 494.3L440.8 491.2L440.2 489.6L440.2 485.5L441.8 482.8L443.0 482.7L443.0 481.8L443.5 482.6L443.9 481.8L444.4 482.1L444.4 481.4L445.4 482.3L446.0 481.6L448.1 481.5L454.2 484.2L458.4 484.5L472.7 483.6L480.9 476.6L485.0 474.4L491.1 469.4L498.8 466.4L502.3 466.0L508.2 462.8L512.4 455.1L512.2 451.7L511.3 450.5L512.4 449.7L513.6 450.1L518.3 449.8L516.7 451.9L518.4 453.4L519.4 452.9L520.1 451.6L522.0 451.1L521.4 450.1L521.7 449.7L520.5 448.8L519.0 449.2L518.6 448.8L521.6 446.0L523.1 445.5L523.9 445.6L522.6 446.9L524.0 447.3L525.8 446.2L526.0 444.7L526.8 444.2L527.8 445.8L527.8 444.9L529.9 443.7L528.3 444.1L528.9 443.2L527.8 443.7L528.1 442.7L526.2 443.9L527.1 442.7L528.5 442.2L534.0 443.1L536.6 444.8L542.7 446.7L548.1 456.1L546.1 458.9L541.4 461.6L540.0 464.9L540.1 466.2L538.9 466.4L538.6 467.3L534.3 469.0L528.5 469.8L519.8 472.4L518.6 473.2L518.3 474.4L519.4 480.5L522.1 486.3L525.2 490.2L530.1 493.4L530.2 493.9L528.3 494.4L527.7 493.1L526.1 492.7L525.2 493.4L527.1 495.4L526.8 496.8L528.5 500.9L531.8 503.7L530.7 506.6L530.1 513.1L525.7 516.0L520.8 524.2L518.3 525.3L515.8 531.5L512.9 535.1L513.7 537.0L517.3 541.1L519.0 545.1L517.4 542.9L517.7 543.4L516.9 543.8L518.6 545.9L517.8 546.6L516.7 545.8L517.4 547.9L519.4 546.5L520.0 547.2L520.0 546.5L522.6 548.6L520.6 548.8L520.5 550.6L521.0 549.1L523.0 549.1L525.5 551.2L526.3 550.6L526.0 554.4L525.6 554.1L523.6 555.8L526.1 555.7L525.8 556.4L526.3 556.8L525.7 556.8L526.3 558.2L525.5 559.4L528.1 561.8L532.5 562.5L542.2 559.2L543.5 558.5L544.6 555.9L546.5 553.9L549.2 553.0L549.8 551.9L548.6 544.5L549.4 543.4L550.5 538.0L548.8 535.6L548.6 534.7L549.3 534.3L546.1 530.0L544.6 529.7L542.5 523.7L539.1 521.3L538.5 519.4L535.7 515.2L535.7 511.4L533.0 509.2L533.2 508.1L534.5 507.0L533.3 505.3L533.5 503.0L531.6 500.6L536.4 501.1L536.8 500.3L536.3 497.9L537.5 496.8L536.3 496.7L534.4 495.4L541.6 494.4L556.3 487.1L562.6 485.2L568.4 485.0L569.7 483.8L568.7 484.7L568.5 483.9L571.3 483.9L576.2 481.4L578.2 481.6L580.7 479.8L581.2 478.9L580.8 477.4L582.8 478.9L583.4 477.9L584.9 478.5L584.3 476.1L582.1 475.6L582.8 475.2L580.6 473.9L585.3 475.9L588.8 475.9L591.5 478.6L592.6 479.0L594.5 477.5L595.0 476.3L592.5 469.5L592.3 470.2L591.4 469.5L588.7 470.8L587.9 470.8L588.0 470.3L579.7 472.7L578.2 471.9L578.9 469.6L578.1 467.6L579.1 468.1L579.1 467.1L578.5 466.2L577.9 467.2L576.4 463.8L575.7 463.8L576.4 460.9L578.9 456.7L579.1 454.8L581.2 454.6L585.6 451.7L588.8 453.1L591.9 458.2L592.8 465.7L594.9 471.7L596.5 474.9L599.2 477.5L600.5 477.7L603.4 476.1L607.7 476.6L611.4 475.1L617.0 476.7L618.1 477.8L619.9 478.3L625.4 478.0L629.1 480.8L632.6 481.7L634.0 483.3L637.3 485.2L638.4 486.6L640.8 487.7L641.3 486.9L641.8 489.4L645.5 496.6L645.3 497.0L643.7 496.1L642.2 496.8L646.1 497.3L646.9 498.0L646.0 498.9L643.9 499.2L644.1 502.9L645.3 506.0L648.0 510.2L650.7 511.9L654.9 511.9L657.2 512.7L658.9 512.1L659.8 513.1L660.4 512.4L662.9 511.6L683.7 509.5L689.2 507.6L705.5 506.8L712.7 507.6L714.7 506.2L722.5 508.8L721.5 509.8L720.0 510.0L720.0 511.5L725.7 516.7L728.2 518.2L726.6 517.7L726.1 518.2L726.8 519.1L727.7 518.9L730.9 521.1L733.9 521.3L729.4 519.2L728.7 518.2L738.6 522.5L752.8 525.6L755.9 526.8L752.5 526.1L753.5 527.0L755.7 527.3L760.6 525.5L766.3 525.9L768.0 524.3L768.4 521.0L769.8 521.6L769.0 522.0L769.5 522.5L770.4 522.1L770.0 521.8L771.4 520.3L772.8 519.9L774.1 520.5L777.0 520.3L780.1 518.5L780.0 517.9L779.0 518.4L777.5 518.1L777.1 517.4L778.3 517.7L780.0 517.0L780.0 516.0L779.2 516.0L780.0 515.5L780.8 517.2L781.4 515.3L785.8 513.6L786.7 512.3L788.6 512.3L791.4 513.3L795.7 512.9L797.8 513.4L805.0 511.7L802.4 511.6L799.2 509.8L794.2 508.6L791.5 509.0L792.0 508.4L790.1 509.1L787.3 509.0L785.0 511.0L782.8 507.3L783.8 505.4L784.8 506.4L788.2 507.4L791.4 506.2L796.0 506.9L798.3 506.2L799.6 504.0L801.4 505.7L808.5 507.0L811.5 505.6L813.6 505.7L814.2 504.5L815.8 505.4L816.2 505.0L818.9 505.2L822.0 503.3L822.8 504.3L827.1 503.7L830.1 504.5L837.7 502.3L856.8 505.0L858.0 504.1L862.6 503.3L864.2 503.7L867.4 503.0L866.0 504.2L866.2 505.0L865.6 504.8L863.4 506.2L859.0 506.9L853.8 506.6L850.5 510.4L839.2 509.1L830.2 510.4L827.3 513.1L830.1 511.1L832.5 510.4L833.1 511.1L833.5 514.7L832.5 515.3L831.1 514.6L827.8 514.7L827.5 515.5L828.4 515.0L829.1 516.5L827.6 517.7L828.4 518.1L827.5 519.4L830.0 519.0L829.1 515.6L829.6 514.8L831.7 516.0L834.5 514.8L835.7 515.2L838.8 518.7L838.8 521.6L840.4 524.5L839.4 526.2L837.6 526.6L835.2 526.0L833.7 527.5L832.7 526.2L831.2 526.6L831.0 525.4L829.9 526.1L828.9 525.2L827.0 525.4L828.2 526.6L829.2 525.9L829.7 528.7L830.4 528.7L829.9 528.2L830.5 526.1L830.6 527.2L831.2 527.5L832.6 527.1L834.6 528.0L834.5 529.2L835.3 528.4L835.0 526.6L835.7 526.3L837.3 527.3L840.8 525.8L841.2 524.3L840.4 522.1L841.3 520.9L844.3 522.6L845.0 523.7L847.4 530.1L846.9 531.4L848.0 531.7L849.1 533.0L851.1 537.1L851.1 539.3L852.1 538.3L853.7 534.5L853.2 529.9L854.4 531.2L855.9 534.4L856.1 539.3L854.7 541.7L855.8 541.3L856.8 538.6L856.6 534.3L855.3 531.4L857.9 531.8L859.0 533.3L861.1 533.4L859.0 532.6L857.4 531.1L854.4 530.7L853.9 530.2L855.3 528.4L861.1 530.5L867.8 536.3L868.6 538.2L867.4 541.2L869.1 537.4L869.7 537.5L871.0 539.5L871.0 543.1L871.3 539.7L870.2 537.4L869.1 536.9L868.0 535.1L869.3 534.9L876.2 536.6L876.7 535.7L873.4 532.6L874.6 532.6L879.0 535.1L882.0 538.2L880.8 535.6L879.1 534.6L881.4 535.4L888.5 541.9L889.4 543.8L889.9 543.6L889.3 542.9L892.1 544.0L894.7 543.7L897.9 545.1L897.9 547.0L899.3 546.8L901.6 548.4L903.8 551.3L904.0 553.0L903.5 553.7L903.1 552.9L902.7 554.5L897.6 556.8L893.5 560.4L892.7 562.5L893.2 562.3L897.1 558.1L898.0 557.6L898.1 558.2L897.1 559.4L896.5 562.0L893.8 564.1L892.9 565.9L892.7 569.0L890.3 573.2L889.3 577.6L888.5 578.3L884.5 577.6L878.5 578.0L875.0 576.9L873.8 577.4L874.1 578.4L878.0 580.5L879.3 580.2L881.6 582.2L884.1 581.9L886.7 585.0L890.3 581.6L894.9 581.3L895.8 581.9L893.9 582.6L893.5 584.3L894.0 584.8L894.3 582.9L895.9 582.5L897.4 578.8L907.2 577.8L909.4 579.5L915.1 580.2L917.1 577.2L918.2 576.7L924.2 577.1L931.0 579.7L933.4 581.7L936.6 586.0L944.1 589.5L944.4 590.4L946.8 590.9L950.5 594.3L948.5 591.8L939.2 586.5L938.6 584.7L939.5 584.5L949.9 590.4L961.9 598.4L971.3 608.0L974.6 613.1L974.4 611.7L976.5 612.6L983.2 620.5L984.0 622.8L983.3 633.2L980.4 636.9L979.0 644.1L979.0 650.6L976.3 655.1L978.3 653.6L979.7 653.9L980.4 646.2L984.0 639.8L986.3 637.7L989.3 637.4L994.1 640.1L994.7 639.4L997.7 639.8L999.8 640.8L1013.2 652.8L1016.2 659.1L1017.1 656.9L1019.2 656.9L1023.1 659.1L1027.4 663.1L1028.7 665.4L1029.7 672.4L1028.1 677.6L1029.0 679.0L1028.9 680.9L1026.2 685.7L1027.9 684.9L1028.9 683.7L1030.1 674.7L1032.5 669.9L1035.9 667.9L1040.3 668.9L1046.2 669.0L1048.5 670.2L1051.7 670.8L1051.7 685.7ZM642.9 220.6L643.9 222.0L643.7 223.5L639.9 228.8L639.4 231.5L637.3 231.9L634.8 230.6L634.3 230.9L634.6 232.2L632.5 236.8L629.0 236.8L628.9 235.5L626.9 232.0L623.4 229.5L617.7 230.1L612.5 228.1L609.8 228.1L609.1 228.8L602.6 229.6L600.0 227.9L599.2 228.2L599.2 229.3L598.3 229.5L596.6 227.9L590.4 227.3L584.8 230.2L584.1 232.2L580.3 236.0L572.5 235.8L569.5 237.1L566.6 236.8L567.2 235.4L565.6 233.9L566.3 233.1L566.4 230.9L565.1 229.2L563.6 228.7L562.0 228.8L561.6 230.5L560.4 231.7L556.9 232.1L554.0 235.0L552.9 234.9L551.5 233.5L549.3 233.2L548.2 235.7L549.7 239.3L544.7 247.7L541.1 251.1L537.4 258.8L533.4 253.4L528.3 252.9L529.7 251.6L529.9 250.3L528.8 248.2L528.9 246.1L528.2 244.8L524.4 242.6L520.9 238.5L514.8 235.8L499.4 236.8L498.3 236.3L497.9 238.2L491.2 238.0L491.5 238.8L486.7 239.3L484.6 238.3L478.7 237.6L477.2 236.8L470.2 236.2L472.1 235.4L469.7 235.1L467.0 235.1L464.6 236.1L463.8 235.0L462.8 236.6L461.4 236.4L461.4 235.4L460.1 236.8L460.4 235.0L454.2 239.3L453.6 240.3L455.1 241.8L455.3 243.4L452.6 243.5L448.8 238.7L444.7 235.5L439.9 233.1L436.8 234.1L434.7 233.3L432.9 231.9L431.4 228.8L434.0 223.9L433.9 222.0L439.4 220.1L442.8 220.5L447.3 222.5L449.3 222.6L449.6 223.3L453.7 223.9L455.5 224.9L457.2 224.8L458.4 223.6L462.5 223.4L461.9 224.5L458.1 224.6L460.3 226.3L464.6 225.4L470.1 225.8L472.8 226.9L477.1 226.9L479.9 228.0L483.3 227.4L486.2 228.1L486.1 228.7L487.6 228.2L492.6 228.5L495.6 224.3L496.7 224.1L502.4 224.6L503.1 224.1L505.0 225.2L505.9 219.6L502.3 218.4L500.3 216.5L498.3 215.9L495.9 212.1L492.8 210.1L489.2 206.2L489.0 205.2L492.6 204.3L492.8 203.8L492.7 203.1L491.0 202.2L489.6 199.6L490.7 197.7L492.6 197.3L491.8 196.2L490.7 195.8L490.6 194.3L490.7 193.9L492.3 194.1L492.1 192.5L493.8 193.1L493.2 191.8L491.0 191.5L489.1 189.6L482.6 186.0L478.9 185.1L477.1 185.5L475.2 184.4L473.0 185.2L469.6 185.1L467.0 183.5L466.6 181.6L468.0 179.2L470.2 178.3L468.2 178.1L470.9 177.6L475.1 175.7L477.1 173.8L477.8 174.4L482.5 174.5L483.9 175.1L484.8 174.2L490.5 173.5L497.7 175.9L500.4 177.9L500.9 177.6L504.0 178.4L505.9 180.6L505.1 180.6L505.7 181.8L506.5 181.9L506.9 181.1L506.4 181.1L506.4 180.1L507.7 180.4L509.7 179.3L510.2 179.7L509.8 180.6L510.5 181.0L512.6 180.8L516.3 182.5L518.3 181.3L521.9 182.0L522.0 182.6L520.3 182.8L520.6 183.5L522.4 183.3L523.4 184.1L523.7 183.2L522.6 182.8L522.9 181.8L526.8 182.6L526.2 179.8L525.1 179.4L528.9 176.6L528.9 175.4L535.3 174.9L539.4 177.0L541.2 176.8L542.5 177.5L544.5 177.5L545.1 176.3L545.8 177.6L546.5 177.0L546.1 176.3L548.1 176.3L549.4 174.5L551.7 173.8L552.8 174.2L553.5 175.6L553.5 174.8L557.1 174.8L559.1 176.9L559.0 177.6L560.4 177.6L564.7 180.0L568.3 180.3L569.9 179.3L571.3 179.7L575.1 183.8L576.5 184.3L582.2 185.4L584.8 183.3L588.0 183.3L590.1 185.7L589.5 188.6L590.5 189.6L590.5 192.0L594.2 197.2L596.1 197.5L602.4 195.6L606.5 196.1L609.1 197.3L610.1 196.0L612.7 194.8L612.1 197.2L613.6 197.4L615.0 196.9L615.2 197.7L613.7 200.2L612.0 201.4L599.5 199.9L598.8 203.6L599.7 204.7L603.1 204.4L605.5 204.9L604.4 204.1L606.8 204.1L608.4 206.2L614.7 207.7L616.0 207.3L615.2 206.8L615.8 206.2L618.8 208.9L621.4 206.9L623.5 207.1L624.9 208.1L629.6 209.4L635.1 214.9ZM442.8 161.5L443.7 163.3L443.4 164.8L440.3 166.7L440.2 168.0L439.1 169.0L434.7 168.5L428.3 169.8L420.2 170.1L417.7 172.1L415.6 172.4L414.6 174.4L412.3 174.9L411.6 174.4L410.6 175.3L408.0 175.3L408.2 174.7L410.1 173.6L410.1 173.0L409.0 172.8L410.9 170.6L410.6 169.3L409.9 169.4L409.2 170.7L407.9 170.6L407.8 171.7L408.8 172.1L407.9 173.1L408.4 173.7L406.3 174.3L407.2 175.0L403.9 175.6L400.6 175.8L398.5 175.3L395.9 175.9L392.9 175.5L388.9 173.1L383.0 172.6L380.0 173.2L372.3 171.8L361.2 173.5L349.4 173.8L346.2 175.5L341.7 175.7L338.3 174.7L336.4 175.3L334.5 174.9L333.1 175.8L334.0 176.1L332.4 176.5L320.5 177.8L319.4 176.1L320.1 174.5L321.3 174.1L323.4 170.8L325.1 169.3L324.6 168.3L325.9 168.6L326.8 168.0L330.9 164.2L335.7 162.2L336.7 160.5L337.2 161.1L338.1 161.0L339.3 159.1L340.9 158.0L341.0 156.2L342.0 154.4L339.6 151.7L338.0 151.2L338.1 151.9L336.5 150.8L336.5 149.7L338.1 148.1L336.2 147.2L335.9 147.8L333.1 145.1L327.8 146.6L325.1 145.9L323.4 146.6L314.6 144.5L312.3 145.9L309.0 145.6L308.6 144.8L308.1 145.4L307.0 144.0L305.7 143.7L303.8 141.1L302.1 140.8L300.9 138.3L298.5 136.6L296.4 136.3L295.6 134.7L293.6 133.3L291.8 126.1L292.0 125.1L292.7 125.5L293.2 124.7L291.6 123.7L291.0 120.5L288.7 115.4L287.4 114.3L284.6 113.6L284.6 112.9L286.6 113.0L285.8 111.8L284.1 110.9L280.0 111.9L279.1 112.7L276.7 112.4L268.6 114.4L264.5 113.5L263.3 112.5L259.6 112.4L258.1 110.7L257.2 111.6L254.7 110.6L253.4 109.1L248.6 108.3L246.5 109.5L245.0 108.8L245.7 108.3L245.0 106.6L243.8 107.2L240.9 106.8L241.7 107.6L241.3 108.0L240.1 107.0L239.1 104.4L232.1 101.9L227.0 96.1L225.9 95.8L225.8 95.1L228.0 94.6L227.3 94.8L227.7 93.6L225.7 92.8L226.0 91.7L224.7 90.5L224.1 91.0L222.9 90.7L222.8 91.5L225.2 94.3L225.2 96.1L223.7 95.5L215.1 95.3L210.2 95.9L206.4 95.4L203.3 94.1L202.0 91.2L202.2 89.0L200.2 87.2L199.6 87.7L200.1 89.7L199.9 95.4L199.1 95.3L199.5 93.4L198.6 92.0L197.5 92.5L197.2 93.8L196.0 93.6L195.3 94.3L194.0 93.8L193.3 91.3L188.8 90.0L187.2 91.0L184.5 89.7L184.0 90.2L181.6 90.0L180.7 90.5L181.0 91.0L178.5 90.6L176.5 87.9L169.3 84.9L168.8 83.8L167.1 83.5L166.7 82.9L168.3 81.6L177.9 81.6L183.3 80.4L184.5 79.5L184.7 76.3L180.9 73.9L176.6 72.3L169.1 73.2L165.6 72.0L150.6 72.3L146.2 71.3L145.1 72.3L144.9 74.4L135.9 79.4L132.2 85.0L129.0 84.9L129.0 85.5L128.1 85.6L126.1 88.0L125.7 89.2L125.0 89.9L124.3 89.5L123.6 90.7L121.9 90.9L118.5 90.0L118.9 89.7L118.0 88.5L116.8 90.4L114.8 91.2L115.1 90.7L111.2 91.3L110.7 90.5L109.5 91.2L106.0 91.2L104.6 92.6L104.4 95.3L103.4 95.5L103.6 96.6L104.9 96.3L103.2 98.8L103.5 99.8L102.4 100.6L99.3 99.7L96.6 100.9L95.2 100.9L93.0 101.9L88.9 105.4L85.9 106.3L85.5 105.6L87.1 101.2L86.4 100.1L85.0 99.8L80.7 100.9L74.5 104.2L71.5 103.7L70.8 102.2L71.4 100.8L73.2 101.7L74.2 101.0L73.6 100.2L74.2 99.8L75.1 100.2L75.1 100.9L85.5 95.8L87.5 96.8L90.1 95.8L92.0 97.5L93.5 96.8L94.0 94.8L92.8 96.3L92.1 94.1L91.4 93.8L91.9 92.8L89.9 92.1L88.1 90.0L89.1 88.4L90.0 84.4L93.5 80.3L92.8 80.0L96.0 78.3L96.6 76.6L96.1 75.9L97.8 75.8L98.4 76.4L98.9 74.6L100.4 74.2L100.8 72.8L101.7 73.3L102.8 72.3L101.0 71.6L101.8 70.8L104.0 72.0L106.5 70.3L107.0 70.8L107.9 69.6L113.5 67.7L115.4 67.9L116.2 66.7L118.7 66.4L119.5 64.9L120.9 64.9L120.7 65.4L121.4 65.5L122.9 63.9L124.4 64.9L126.6 62.1L130.1 60.2L131.8 60.8L131.3 61.7L132.1 62.9L132.9 62.0L132.4 61.0L135.8 59.6L137.2 60.0L137.9 59.6L138.4 60.2L137.8 60.9L138.7 60.5L138.5 61.3L139.2 61.3L140.8 59.1L147.8 59.0L152.6 58.3L158.4 54.8L164.8 53.0L167.2 53.6L171.3 52.8L172.9 53.9L177.1 54.6L186.8 54.4L188.4 55.5L187.8 58.3L188.7 58.5L189.6 58.3L190.3 56.5L197.0 54.9L201.7 52.4L202.3 52.6L202.0 53.0L197.0 55.4L198.6 56.0L200.5 58.4L201.7 59.0L202.7 58.8L204.2 56.4L207.3 56.4L207.7 57.9L208.3 58.1L215.2 56.7L218.5 56.9L219.8 56.1L220.1 55.3L219.5 54.6L220.8 54.5L220.0 56.9L222.2 60.0L225.3 61.0L226.5 62.2L232.9 63.6L236.0 62.6L235.7 61.7L239.0 62.9L239.7 62.7L239.8 61.9L241.8 64.6L244.3 66.0L246.2 64.6L248.5 64.1L247.5 65.1L246.4 65.1L245.9 66.4L246.3 67.0L249.3 67.9L251.5 69.7L253.4 69.3L254.2 73.2L256.0 74.2L257.1 76.6L258.2 77.7L260.1 78.0L261.2 79.8L265.0 82.7L266.0 82.6L267.6 83.6L267.9 83.2L270.7 83.6L271.2 82.9L273.7 83.3L275.7 82.6L283.4 83.1L284.3 85.6L285.0 85.8L285.9 84.4L284.9 83.1L285.9 83.2L287.0 84.3L290.8 85.6L293.7 87.9L297.2 88.5L297.2 89.5L297.7 89.2L299.9 91.6L304.8 92.4L305.0 93.6L308.1 94.4L310.6 98.4L313.3 100.8L314.2 102.5L314.8 102.0L315.2 98.9L317.0 98.9L315.4 99.8L315.6 101.0L316.4 102.1L318.0 102.5L318.9 104.9L321.9 105.7L324.6 105.5L326.7 106.8L327.0 106.0L327.8 105.7L328.5 106.4L328.6 105.7L329.1 105.9L330.3 107.1L329.2 106.9L329.1 107.6L330.0 110.3L332.3 111.1L333.2 110.7L333.1 109.9L331.8 109.1L330.8 106.7L329.3 105.0L327.8 104.5L327.5 104.9L324.4 101.8L323.6 101.9L324.5 100.6L325.6 100.3L326.8 101.3L327.3 102.7L330.9 105.4L333.4 106.3L338.6 110.1L340.3 110.1L339.9 110.8L340.5 112.6L339.5 114.1L335.7 112.0L334.7 112.4L333.3 111.6L332.3 112.1L334.0 113.4L336.0 113.7L335.3 115.5L335.9 117.1L337.6 117.1L337.4 117.7L339.3 116.9L340.9 112.8L341.7 112.3L346.7 117.8L351.3 120.0L350.8 121.1L348.3 121.9L348.7 123.3L350.4 122.4L350.7 123.1L351.6 120.3L356.1 121.5L357.4 122.8L354.7 124.0L354.0 123.2L354.0 124.2L358.1 125.6L356.8 123.8L358.9 123.8L360.1 124.8L360.5 124.0L360.0 126.0L358.1 126.3L358.9 126.3L358.6 127.1L359.9 126.8L360.7 127.8L363.6 126.3L361.5 125.8L361.2 124.3L366.0 124.2L373.4 127.8L374.5 128.5L375.3 131.3L376.8 130.5L377.6 130.8L378.0 132.0L378.5 131.4L379.0 132.1L379.2 131.1L380.8 131.1L381.8 130.4L383.7 131.4L385.4 129.6L386.8 130.3L389.5 130.3L390.5 132.1L391.9 131.9L393.9 134.2L391.4 138.4L390.3 138.8L389.8 137.4L388.8 137.5L388.4 137.8L389.2 138.3L388.2 138.8L388.9 140.1L390.4 139.2L392.1 139.3L394.8 141.3L394.0 142.2L392.0 140.5L387.2 140.7L386.8 144.0L388.8 145.9L389.3 146.1L392.0 142.8L392.9 143.8L392.6 145.1L393.9 145.1L393.6 145.9L394.8 146.4L394.6 145.5L396.6 146.0L397.1 145.4L398.4 146.1L398.6 145.4L397.4 145.1L398.6 144.2L400.8 144.5L401.7 145.4L401.0 145.6L401.5 146.6L401.8 146.1L402.9 147.0L404.9 146.8L402.3 145.6L403.7 144.9L407.0 145.2L407.7 145.7L407.0 146.1L409.8 146.2L410.1 147.1L410.4 146.4L411.5 146.6L411.0 146.1L413.9 145.7L415.9 146.9L417.2 146.8L419.0 148.2L422.9 149.1L422.4 149.3L422.9 150.6L427.4 153.6L431.3 158.5L433.7 159.5L434.7 161.0L440.2 159.7ZM986.9 634.6L988.5 635.0L984.2 637.7L984.5 635.6L985.5 634.6ZM201.7 614.1L203.8 613.4L205.8 613.6L205.1 614.7L204.1 615.1L202.5 614.7L200.4 616.5L198.2 616.6ZM160.6 589.8L161.6 590.5L159.1 591.5L157.5 589.8L158.5 589.9L160.4 588.6L161.5 589.2ZM896.0 577.6L896.8 578.7L895.7 579.9L894.8 579.5L895.2 580.8L887.2 580.9L888.7 578.9L890.3 579.0L892.2 580.2L891.7 579.6L893.2 577.9ZM534.2 108.6L531.3 106.8L531.8 106.3L535.2 107.8L536.1 109.1L535.9 110.1ZM793.9 500.6L796.5 501.8L796.2 503.3L795.4 503.3L794.6 502.3L793.0 501.8ZM772.1 462.3L773.8 463.4L773.8 465.2L770.8 464.7ZM632.2 238.3L634.5 238.4L635.5 240.6L633.2 239.8L631.0 240.3L628.9 239.2L628.0 237.3ZM417.2 33.8L420.2 33.3L421.4 34.0L420.9 35.1L419.5 35.9L418.2 35.0L415.9 35.5L415.9 34.2ZM883.1 578.6L885.7 578.9L886.1 580.9L887.6 581.9L887.5 583.0L886.5 582.9L884.9 581.1L881.6 580.9L877.9 579.2ZM839.2 516.2L839.7 516.9L839.2 518.2L838.2 516.6L835.0 513.9L835.1 511.7ZM184.0 619.8L185.5 620.0L186.6 622.0L184.5 622.4L181.1 621.5L177.9 618.7L176.8 616.7L176.5 615.7L177.6 615.6L178.5 613.3L181.0 612.2L180.7 611.2L181.4 611.2L182.6 614.9L183.7 615.3L183.7 615.9L182.5 616.5L182.1 617.9L183.3 619.9ZM899.3 563.0L900.9 563.0L902.1 564.0L901.2 564.2L901.7 565.0L901.2 566.0L898.9 568.0L893.4 570.2L896.0 568.1ZM893.5 567.8L893.3 566.8L894.2 564.7L896.5 564.0L898.9 561.4L901.6 560.6L900.9 562.5L898.5 563.1L895.0 567.1ZM900.9 559.9L897.9 561.5L898.8 558.2L899.8 557.5L901.6 557.2L901.9 557.6ZM902.9 556.8L904.8 555.9L906.0 557.2L904.5 557.4L901.9 559.9ZM628.3 455.3L629.6 456.9L627.0 457.2L621.4 454.4L619.7 452.0L618.0 451.6L615.2 448.4L614.7 445.4L615.3 444.9L617.6 446.1L619.3 449.7L620.6 450.9L626.4 452.7ZM586.3 438.4L588.4 440.0L590.4 442.7L590.0 444.0L588.7 443.7L588.0 443.2L588.8 443.0L584.2 439.8L584.6 438.2L584.1 436.7L584.6 436.4ZM487.9 168.3L489.6 168.3L494.2 170.3L495.6 171.2L495.2 172.1L484.6 169.7L484.1 169.3L484.6 169.0ZM524.0 105.5L522.9 105.4L522.6 103.0L523.9 103.6L528.3 103.5L529.9 106.0L528.3 104.2L529.4 107.1L528.1 106.0L527.6 106.6L526.2 105.2ZM505.6 105.0L505.9 102.7L509.2 105.3L511.1 105.0L512.2 104.1L512.9 104.5L511.8 106.0L511.6 105.2L510.6 106.3L509.2 106.3L509.2 105.7L507.2 106.9L506.9 106.0L507.6 106.5L507.7 106.0L506.4 105.2L506.4 106.1L505.5 106.3L506.6 104.2ZM477.9 84.1L477.1 83.3L477.8 82.9L478.2 80.5L479.0 81.5L480.5 81.0L484.0 82.8L484.9 82.9L484.4 82.1L489.0 83.3L491.5 85.3L490.3 86.9L486.9 84.3L484.3 84.4L483.1 83.8L480.2 84.9ZM750.8 495.5L751.4 495.7L751.5 497.3L750.2 498.0L750.4 497.5L747.7 497.7L744.5 496.6L745.6 495.1L747.2 494.7ZM912.8 481.6L912.7 484.6L910.8 485.0L908.7 486.8L907.6 486.6L903.4 488.9L901.9 488.2L901.9 487.7L907.6 483.5L910.4 482.4L911.7 482.7ZM875.4 451.2L875.7 454.1L874.8 457.2L873.3 457.7L872.6 458.7L871.4 458.2L869.3 458.5L870.7 457.5L870.5 455.7L871.4 452.9L873.4 450.4L874.9 450.4L875.7 450.8ZM647.9 450.7L648.6 451.5L647.9 452.0L648.1 454.6L646.9 455.1L647.4 457.0L646.4 457.9L645.5 456.2L644.8 451.6L641.7 450.7L640.8 449.7L641.4 448.0L642.2 447.8L643.4 449.1ZM950.8 417.8L950.6 419.0L947.9 421.4L947.0 421.6L946.1 420.7L944.1 420.1L943.2 417.8L943.3 412.0L944.4 411.2L945.1 411.6L947.0 415.3ZM890.8 418.3L890.2 418.7L889.3 418.3L887.2 416.8L887.0 415.8L887.2 413.2L888.2 413.0L889.2 410.4L890.1 409.9L891.6 410.2L892.3 412.5L891.8 416.8ZM900.5 387.6L899.9 395.6L898.1 398.1L894.3 395.6L893.8 392.3L895.7 388.4L898.9 384.0L900.2 385.7ZM889.8 319.0L889.1 320.4L887.1 321.1L886.0 320.9L885.1 319.0L887.3 316.2L888.8 317.0ZM13.5 306.3L14.8 304.6L19.4 302.3L23.1 301.2L28.2 301.2L26.8 301.8L23.5 301.8L15.6 305.4L13.8 306.9ZM866.1 278.9L866.1 277.8L866.7 277.5L865.7 277.0L867.5 276.1L867.2 275.2L868.1 274.5L869.2 274.7L870.5 276.5L871.0 275.5L872.1 276.0L871.6 277.0L873.1 277.0L873.6 277.8L872.6 277.8L873.4 278.6L872.9 279.6L871.2 279.3L871.1 281.0L869.7 280.0L867.2 280.3L865.9 279.3ZM839.7 271.0L840.5 271.9L839.8 272.8L837.8 270.1L835.9 270.1L833.3 268.7L832.3 267.5L832.6 266.4L833.8 265.6L837.2 267.6ZM-28.6 260.9L-27.7 261.1L-26.9 262.1L-28.7 265.3L-29.2 265.6L-29.8 265.1L-31.0 266.5L-31.9 270.6L-32.4 270.1L-31.4 265.2L-29.6 263.6L-27.9 263.6L-27.9 261.6L-28.9 262.1ZM867.6 259.2L867.0 258.9L866.4 255.6L866.5 254.9L867.5 256.5L867.8 258.4L868.1 256.8L867.0 255.2L867.7 254.3L868.3 255.2L867.8 255.4L869.5 255.4L870.6 256.5L871.4 259.9L871.2 260.6L870.0 260.9L869.1 259.8ZM773.9 253.5L770.0 254.7L762.2 255.9L762.8 252.6L764.2 253.0L766.6 251.9L769.3 253.7L771.4 252.7ZM746.7 240.3L742.0 241.3L739.1 241.1L738.6 240.0L744.8 238.3L748.8 239.0L749.2 239.5ZM-31.5 243.5L-32.3 246.5L-33.3 247.6L-34.8 247.7L-32.7 246.2L-32.4 245.3L-33.0 245.3L-31.2 238.9L-29.6 238.3L-29.3 239.6L-31.0 243.0L-31.5 242.8L-32.2 243.7L-31.9 244.5ZM202.2 195.1L203.8 195.9L204.0 196.8L203.2 197.3L198.9 197.5L197.7 198.4L193.5 198.5L193.6 195.7L192.5 194.6L192.8 193.8L193.9 193.9L194.9 197.0L196.4 196.8L196.8 195.9L197.5 196.1L197.0 194.6L199.6 195.4ZM8.7 149.7L9.2 150.0L3.8 158.5L0.1 162.0L-0.6 156.9L1.1 152.9L3.2 150.6L5.6 151.4L7.9 150.7ZM323.0 95.6L323.2 97.0L322.5 98.7L323.0 99.7L321.3 100.4L321.5 99.7L320.9 99.5L320.9 100.8L320.4 100.9L319.4 99.2L316.4 98.3L316.7 96.5L315.7 96.1L315.7 97.3L315.4 96.6L313.7 97.1L312.1 93.8L314.2 94.8L316.4 93.9L318.4 95.1L319.4 94.6L321.3 95.6L322.4 95.0ZM310.5 92.1L308.7 90.2L310.1 88.9L309.7 85.9L311.2 86.5L310.8 88.8L312.3 89.0L313.4 90.0L313.1 89.7L313.7 89.0L314.3 89.6L314.9 89.2L315.2 89.8L313.7 90.5L316.3 91.7L315.1 93.9L313.9 93.8L313.3 92.3L312.1 92.3L312.3 93.3ZM303.5 85.4L304.3 84.9L303.3 83.9L302.1 85.1L302.4 83.4L301.9 82.7L299.5 82.6L300.8 81.8L304.5 81.4L307.2 83.3L308.7 86.9L310.0 87.2L309.3 87.7ZM295.7 80.4L292.5 80.8L287.7 78.9L288.2 78.5L287.7 77.9L286.4 78.7L286.4 77.5L286.8 77.7L287.2 76.9L293.5 78.0L295.9 76.7L297.6 77.0L300.7 80.6L300.7 81.3L295.6 82.1L296.6 80.7ZM448.4 73.1L447.8 72.1L449.1 72.6L450.5 71.6L449.9 70.8L453.3 70.3L453.6 70.8L452.5 72.6L451.7 71.6L452.1 72.6L453.0 72.6L454.1 77.5L453.5 77.6L453.0 79.7L447.8 85.3L444.2 86.6L442.5 88.7L438.7 91.2L438.8 89.2L440.9 89.1L441.9 88.2L441.6 87.4L442.5 86.9L442.1 86.4L445.5 84.4L445.4 83.1L447.8 82.5L448.8 80.6L451.5 79.8L452.4 78.9L452.7 77.7L452.2 76.2L451.2 75.5L448.8 75.4L447.1 74.4ZM263.5 73.9L260.8 71.6L259.6 71.7L258.0 70.8L256.1 68.2L254.0 68.4L254.0 67.7L256.2 67.6L258.7 70.3L263.0 72.4L264.5 74.6ZM438.3 70.3L436.1 66.9L437.6 66.2L440.4 67.2L441.6 69.3L442.5 69.8L445.2 70.3L444.9 69.8L447.8 70.8L445.2 73.1L444.7 72.0L443.2 72.3L440.6 71.7L439.7 70.8L438.5 71.7ZM386.3 40.1L388.0 42.2L391.0 43.3L390.5 43.9L386.4 42.7L384.8 40.4L383.7 40.4L381.2 38.2L378.0 37.9L379.2 37.3L378.2 35.2L379.6 34.5L380.7 35.7L382.5 36.1L382.0 36.6L384.3 39.0ZM418.7 61.0L419.6 63.5L419.5 65.4L418.8 65.4L416.1 59.3L414.5 57.6L410.1 56.5L405.9 53.9L406.8 52.6L408.5 54.1L407.3 53.9L407.9 54.7L410.1 55.9L411.4 55.9L409.0 52.7L409.9 49.8L409.3 47.0L408.8 46.4L408.3 46.9L407.0 44.1L405.9 43.6L404.2 38.4L403.1 38.7L403.3 36.8L403.1 36.3L402.3 36.9L403.1 36.1L401.6 36.9L402.3 34.5L406.8 40.3L407.5 43.6L410.8 49.6L411.1 53.9L411.8 55.0L416.9 57.8L419.1 60.3ZM432.1 21.9L431.3 24.2L429.0 24.2L430.0 22.3L430.0 18.9L432.2 17.3L433.6 19.6L431.9 23.5ZM189.4 -1.5L188.6 -0.6L185.0 0.6L187.8 -1.2L186.8 -2.0L188.7 -1.0L188.8 -1.8L187.8 -2.0L187.9 -2.6L187.3 -2.7L187.6 -3.5ZM402.9 14.5L403.8 17.2L400.7 16.7L397.1 18.0L396.2 17.3L395.9 16.6L399.5 14.7L399.6 12.4L397.2 11.0L395.4 8.0L394.1 4.2L392.6 2.8L391.5 2.7L391.2 0.3L387.7 -2.3L388.5 -3.8L392.1 -1.7L392.6 1.4L397.4 8.7L400.0 10.5ZM203.8 -3.3L203.3 -4.0L202.2 -4.1L205.6 -5.1ZM192.0 -5.9L194.6 -3.3L195.1 -1.8L194.4 -1.2L194.4 -2.3ZM209.5 -6.4L205.8 -4.6L208.4 -6.4ZM328.3 -14.9L326.0 -15.3L325.5 -15.9L327.5 -17.6L333.1 -18.4L335.8 -17.4L331.7 -15.3L329.8 -15.8ZM230.3 -24.6L229.2 -23.0L228.9 -21.2L226.2 -18.5L225.3 -18.4L224.6 -16.7L221.5 -13.3L220.7 -13.3L224.6 -17.7L224.7 -18.7L226.3 -19.7L226.3 -20.5L225.3 -20.5L225.6 -21.2L227.2 -20.8L229.4 -24.6L228.7 -26.1L230.0 -26.6L232.0 -28.6L232.8 -28.3ZM279.6 582.9L279.7 582.3L280.8 583.4L281.5 585.0L281.5 586.9L280.8 588.5L279.3 588.1L278.6 589.0L279.2 591.2L276.9 588.2L277.4 586.7L276.7 583.3L279.1 582.5ZM179.0 623.7L180.5 623.7L179.2 625.3L179.5 625.8ZM165.1 591.9L163.9 591.6L164.0 592.9L161.5 591.3L163.0 590.7ZM533.7 260.9L533.0 259.8L533.8 258.2L535.7 259.6ZM461.0 241.1L462.8 241.5L462.8 242.0L461.7 242.3L459.8 242.2L458.3 241.1L458.6 240.5ZM455.3 221.6L457.2 221.3L458.1 221.8L458.1 222.6L456.2 223.1L455.3 222.6ZM501.4 108.6L502.3 108.4L502.3 109.5L500.6 111.4ZM159.9 595.8L161.4 594.3L161.5 595.3ZM273.0 585.5L271.4 584.7L271.7 583.9L272.6 584.7L273.0 584.3ZM64.4 525.6L65.7 526.1L63.5 526.3L62.1 524.9L65.2 525.2ZM703.1 466.4L703.9 466.4L703.2 467.0L702.0 467.2L699.9 466.4L701.7 466.5L702.9 465.0ZM719.6 465.0L720.6 465.1L720.2 466.5L717.4 465.2ZM112.8 463.1L112.6 460.8L113.6 459.2ZM881.8 442.7L879.4 443.2L879.6 441.7L880.4 442.0L881.8 440.1ZM182.4 440.3L182.2 438.9L183.1 437.9L182.6 441.0L182.0 440.7ZM889.8 422.1L888.2 424.3L887.0 423.8L888.3 423.6L888.0 422.9L889.6 421.6ZM-21.2 413.2L-21.5 414.5L-23.0 414.4L-23.2 413.4ZM-21.5 410.4L-19.6 410.2L-20.2 410.8L-19.9 412.2L-20.4 412.6L-22.7 411.7L-22.2 410.4ZM193.6 412.2L194.3 410.2L195.0 411.1ZM146.0 373.2L147.2 373.2L147.1 374.8L144.5 374.9ZM4.2 312.0L4.2 313.2L1.2 314.2L0.1 313.5L2.0 312.4ZM896.9 304.1L893.4 305.6L896.0 303.8ZM-28.9 266.6L-28.4 266.2L-27.4 268.6L-27.7 270.1L-27.9 269.5L-28.4 270.1ZM827.6 261.6L829.5 263.1L829.0 263.9L828.2 263.7ZM-40.0 255.9L-36.9 254.1L-38.0 256.0L-40.2 256.4ZM833.1 248.7L832.2 247.0L834.8 247.5ZM660.2 240.3L660.5 240.9L659.5 242.5L657.3 241.1L657.9 240.3ZM749.0 234.3L747.1 232.1L749.8 232.7L749.9 233.6L748.8 233.1ZM-11.4 225.1L-10.7 223.9L-11.3 225.1L-11.1 226.7L-13.0 229.8L-11.8 228.1ZM-9.3 217.6L-8.6 219.9L-9.1 221.6ZM781.4 218.2L779.0 217.4L782.1 217.4L783.3 217.8L783.8 219.0ZM240.1 182.3L242.1 182.0L242.6 182.3L242.2 182.6L238.7 184.2L237.5 184.0ZM245.8 182.3L249.4 180.6L250.6 180.6L250.8 181.2L249.1 182.0L245.0 183.3ZM298.9 151.1L298.7 152.4L294.3 149.3L295.4 149.1L297.1 150.8L297.7 151.1L298.0 150.4ZM295.3 144.8L292.7 146.1L291.6 145.6L293.7 144.5ZM281.8 143.8L283.3 143.9L284.4 144.8L283.9 145.3L283.0 145.0ZM396.0 142.3L397.1 144.4L394.8 143.9L393.9 143.2L393.9 142.6ZM278.4 141.8L280.2 141.7L281.2 143.1L277.8 142.4L277.1 141.6L278.2 140.6ZM275.0 138.9L276.8 139.4L276.4 140.4L273.1 138.5ZM273.3 137.8L272.6 137.8L272.8 138.5L271.9 138.0L270.0 136.0L271.9 137.3L270.7 135.6L269.1 134.7L269.4 135.4L268.9 135.3L268.1 134.5L269.6 134.4L271.1 135.3ZM262.4 130.1L263.5 130.0L265.8 132.0L264.2 132.0L263.7 131.6L264.4 131.3ZM546.9 115.7L547.3 117.2L546.7 118.7ZM194.0 108.6L189.8 111.8L187.6 112.4L187.6 111.6L188.8 111.6L189.9 110.4L191.2 110.6L192.5 108.9L193.9 108.1ZM315.7 87.9L315.9 87.4L314.4 86.1L316.0 86.6L317.0 89.1L318.7 91.0L317.0 90.1ZM438.5 72.6L437.3 75.2L435.0 77.5L435.3 75.9ZM276.4 73.9L275.7 73.2L272.8 72.6L276.7 72.7L277.2 73.4ZM245.0 61.9L244.9 62.7L244.2 62.2L243.1 63.0L242.8 62.0L243.3 61.7ZM230.3 60.8L232.8 59.9L233.4 60.3L232.8 60.8L233.4 61.9L229.9 61.2L229.4 60.8ZM234.6 55.7L235.6 56.9L236.8 57.1L235.7 57.8L233.6 56.9ZM212.8 53.6L213.6 54.4L212.8 55.2L210.4 55.0L207.9 56.2L210.4 54.3L212.4 54.4L211.9 53.6L212.8 54.1ZM224.4 53.1L225.2 53.3L224.3 54.0L221.3 53.6L222.1 52.6ZM391.3 43.0L393.9 43.6L395.7 45.1L391.8 43.9ZM368.1 23.7L365.5 18.3L366.3 18.9ZM314.4 15.7L311.6 16.9L311.2 15.3L312.4 15.4L315.6 13.2L317.3 13.1L315.4 13.8ZM313.1 12.8L312.3 13.1L312.6 14.1L310.7 14.1L309.7 13.3L312.7 12.3ZM363.3 14.7L362.4 14.5L360.5 11.5ZM318.4 10.4L317.7 10.8L317.0 10.3L319.3 8.8L320.6 8.7L321.3 9.3L321.0 9.9L319.0 9.6ZM182.6 0.1L184.2 0.1L184.5 0.9L181.9 1.7ZM234.9 -33.5L233.9 -31.0L233.1 -30.6L234.5 -33.9L234.9 -34.2ZM235.7 -40.8L235.1 -41.2L235.1 -42.4L236.0 -43.2ZM316.5 -42.2L314.4 -44.5L314.4 -45.4ZM698.3 466.6L697.3 467.3L694.7 467.5ZM-3.4 685.1L-4.1 685.1L-3.6 684.4L-2.2 683.7L-2.2 684.5ZM905.3 573.8L907.7 572.3L907.6 574.7L909.9 575.0L910.1 576.0L909.2 576.8L903.2 576.8ZM170.8 557.9L172.0 559.1L170.7 558.9ZM850.6 531.8L851.2 533.0L850.8 534.4L850.3 534.4L850.0 532.6ZM848.1 528.8L848.4 529.8L847.6 529.6L847.0 527.4ZM853.8 527.2L853.9 528.5L851.8 529.6L852.2 528.2ZM393.5 516.1L393.9 515.8L395.4 516.8L393.4 517.8ZM787.3 500.0L787.8 500.5L787.0 501.0L785.5 500.8L786.0 500.0ZM-25.1 416.4L-24.3 415.9L-23.8 417.5L-25.0 417.6ZM-37.7 261.9L-36.9 262.9L-37.1 264.0L-37.5 262.7L-38.5 262.1ZM534.5 113.6L534.7 115.9L533.8 116.6L533.2 115.6L534.2 115.1ZM173.0 110.7L173.4 111.6L172.8 112.1L168.4 113.6L172.5 111.5ZM177.5 110.1L175.8 111.9L174.8 111.4L174.7 110.9L175.6 111.3ZM150.2 99.3L152.1 100.4L149.7 100.2L149.3 99.5ZM187.7 95.2L187.8 96.0L186.8 95.8L186.6 95.0ZM388.9 90.1L389.2 90.8L388.4 91.1L387.9 90.0L388.5 90.2L388.4 89.2ZM284.9 77.2L284.9 78.1L283.9 78.3L283.9 77.5ZM154.7 74.3L154.4 76.8L154.2 73.8ZM252.4 65.6L253.1 66.1L252.2 66.5L250.6 65.3L250.8 63.9ZM247.4 61.6L247.6 62.3L246.7 63.6L245.8 62.2ZM239.2 58.4L239.5 59.3L238.1 58.4L238.7 57.7ZM233.0 56.3L232.8 57.1L230.9 55.3L232.0 55.0ZM227.5 54.5L228.4 54.8L225.6 55.5L226.0 54.6ZM218.4 52.4L218.1 53.3L217.1 53.6L217.4 52.7ZM214.6 52.6L216.9 52.8L215.9 53.4L211.6 52.0ZM211.0 50.9L211.0 51.6L208.9 50.7L209.9 50.3ZM314.8 9.6L316.0 9.5L314.9 10.6L314.3 10.3ZM190.3 -3.1L190.3 -1.9L188.9 -2.8L189.2 -3.7ZM205.3 -27.0L204.8 -25.6L204.2 -26.7ZM315.1 -30.8L313.6 -30.8L315.9 -31.8ZM267.3 -44.8L267.4 -43.2L266.6 -43.2L266.8 -44.3L265.8 -43.2L267.0 -41.9L265.5 -41.8L266.1 -44.1ZM193.8 -46.5L194.1 -46.1L193.2 -45.4L192.3 -46.2L191.8 -45.9L191.7 -47.4L192.0 -47.7ZM191.3 -46.7L189.6 -47.9L189.2 -47.1L189.1 -48.0L190.5 -48.5ZM183.6 -49.6L184.1 -49.0L183.1 -48.1L182.4 -49.2ZM188.2 -49.2L188.6 -48.7L188.1 -47.8L187.6 -49.4ZM272.6 588.1L273.6 589.8L272.2 590.0L272.5 590.8L271.6 591.6L271.0 590.3L271.4 588.9L272.0 587.8ZM482.8 118.0L480.9 119.0L480.2 116.0L483.0 113.9L485.9 116.0L485.7 116.8ZM516.5 101.2L516.0 99.9L516.7 99.2L520.3 99.5L520.6 102.6L521.1 103.4L522.1 103.4L520.9 103.9L518.8 102.5L519.0 99.8L517.5 101.4ZM466.6 75.8L463.5 74.8L465.5 74.9ZM168.2 552.7L169.8 553.9L168.4 554.1L167.6 555.4L167.0 552.7L165.1 551.8L167.0 551.8ZM161.1 549.6L163.2 548.6L164.5 550.9L164.0 552.5ZM37.5 300.0L39.6 298.0L40.8 298.7L36.4 302.1ZM857.0 289.8L856.9 292.1L854.6 291.8L854.2 290.4L855.1 287.1L856.1 287.3ZM841.4 273.3L843.3 274.0L843.1 276.8L840.9 276.8L840.4 275.5ZM827.0 240.0L827.3 243.0L826.5 243.7L823.8 242.9L823.9 242.0L822.5 241.9ZM827.4 234.6L828.5 234.4L827.6 236.2L824.2 238.0L823.7 237.6L821.8 238.3L822.9 237.1L824.6 236.6L826.3 234.7ZM768.9 232.0L768.8 233.5L765.4 232.5L767.3 230.9L770.2 231.9L769.9 232.3ZM763.1 233.0L761.7 233.0L761.0 232.1L757.7 232.2L757.2 231.6L759.1 230.8L761.2 231.2L760.3 230.4L763.6 232.1L764.2 232.9ZM771.1 229.7L770.4 230.6L768.5 230.4L771.0 228.1L775.2 228.5ZM780.0 227.0L777.8 228.4L778.8 225.8L781.8 225.8ZM10.3 127.3L8.9 125.7L8.9 124.0ZM459.8 56.9L455.2 57.6L454.6 56.4ZM213.8 -9.2L213.8 -8.6L214.3 -8.8L213.8 -7.9L211.9 -7.7ZM898.3 570.0L900.6 569.6L901.4 568.5L904.2 568.5L905.8 567.7L905.6 568.6L907.3 571.3L907.0 571.7L904.5 573.0L901.9 576.6L893.3 576.7L890.7 578.1L890.8 574.4L892.2 572.5L894.5 571.0ZM798.3 489.2L800.4 494.8L799.3 494.6L799.3 495.5L798.3 495.2L796.6 498.0L793.9 497.7L791.0 498.9L791.1 497.9L789.8 497.8L789.1 496.4L787.0 495.1L785.4 496.1L779.0 495.1L780.3 491.8L785.5 490.7L786.3 490.9L786.8 492.8L789.3 493.9L792.0 494.1L793.9 489.8L795.4 489.6L797.2 487.7ZM903.1 371.6L901.9 373.2L901.0 373.5L900.5 372.8L901.4 372.1L901.1 371.0L900.1 371.6L896.4 371.0L894.2 371.4L892.9 369.6L895.0 367.9L896.4 368.4L896.0 366.1L893.5 366.4L891.1 364.2L890.4 361.4L888.7 359.2L889.0 357.8L891.8 356.7L896.5 359.1L897.9 361.3L900.7 360.3L899.5 361.7L898.9 361.3L898.8 362.7L899.8 362.9L898.6 364.0L900.5 364.5L899.8 364.7L900.0 365.2L901.7 366.7L901.9 367.6L902.4 367.4L902.6 369.1L902.1 369.6ZM884.0 345.2L882.0 337.5L879.6 333.2L880.6 331.9L879.6 331.6L880.4 329.7L881.9 329.9L883.2 331.3L884.2 331.0L886.0 331.6L887.7 335.4L887.7 342.2L887.0 343.4L885.6 343.7ZM877.5 306.3L877.7 308.0L876.5 308.6L877.0 315.4L875.9 316.7L872.6 318.4L872.6 317.4L870.1 313.4L869.1 305.4L871.1 303.5L875.3 305.4L875.9 306.1L875.4 306.3L876.4 306.8L876.9 306.1ZM877.8 306.3L878.6 304.0L879.5 303.5L878.5 302.4L878.2 300.4L880.6 298.1L882.5 299.6L882.9 302.2L884.0 304.0L886.6 304.6L890.9 307.5L888.5 307.3L880.6 309.3L878.2 308.2ZM473.8 212.5L472.7 211.6L472.6 210.4L473.6 209.5L475.8 209.2L488.1 214.4L489.1 215.6L489.3 218.3L488.6 219.1L487.5 217.9L481.5 216.9L478.4 214.9L475.3 214.0ZM460.4 132.4L459.7 130.5L460.9 131.0L463.7 129.9L465.0 127.8L467.9 127.5L469.4 126.1L470.9 128.6L474.0 129.7L477.2 128.4L480.9 122.5L482.4 122.4L481.7 128.9L479.4 131.7L478.3 135.0L477.6 135.3L472.1 137.0L470.9 136.0L469.0 137.1L465.8 137.5L462.0 136.6L460.5 137.9L459.4 137.1L458.6 134.1L460.2 133.2ZM152.8 111.1L152.8 112.0L153.8 112.6L151.9 114.6L143.6 118.2L141.1 118.5L135.2 117.3L132.3 114.4L131.3 111.4L135.1 114.3L137.2 114.4L139.2 112.5L139.4 113.9L140.0 112.8L138.4 111.8L134.9 105.1L135.3 103.4L137.3 101.4L139.4 100.4L137.8 100.0L138.3 99.5L148.1 101.6L148.8 102.6L148.6 104.2L151.4 106.2L151.8 107.1L151.2 110.1ZM373.8 -21.5L375.4 -19.6L375.0 -15.7L373.9 -13.8L374.6 -11.5L374.3 -8.9L373.3 -7.0L373.8 -1.7L372.7 -2.2L371.2 -5.9L367.7 -8.1L368.3 -8.6L371.8 -8.0L373.0 -9.4L373.3 -11.2L372.2 -10.1L372.0 -11.4L372.5 -13.8L374.0 -15.4L374.3 -18.4L373.6 -20.1L370.2 -22.6L366.4 -27.5L361.0 -29.3L358.9 -31.3L357.5 -31.7L354.8 -32.2L352.3 -31.5L353.7 -33.9L353.9 -36.7L356.0 -36.4L355.5 -33.8L356.1 -34.5L357.1 -33.0L363.5 -28.7L367.2 -28.1L371.5 -23.1ZM896.5 504.5L895.8 504.4L895.4 505.0L896.0 510.3L895.0 511.1L895.5 514.7L897.9 517.5L896.4 520.4L896.6 524.2L890.4 526.4L877.8 526.3L875.0 527.1L872.9 526.2L869.2 526.0L865.9 527.5L864.5 527.1L868.7 524.3L873.4 522.6L874.6 521.7L874.9 520.4L879.1 520.6L880.6 519.1L879.8 514.5L880.6 510.8L880.3 508.2L879.6 506.9L877.7 505.6L873.9 504.9L873.6 504.3L875.3 503.0L879.8 502.5L880.6 501.9L881.1 502.3L881.1 501.8L881.6 502.5L883.9 500.9L890.3 501.1L891.2 500.4L898.3 499.4L899.8 499.6ZM736.9 234.3L738.2 236.1L737.7 236.6L736.8 236.1L736.6 237.3L735.6 236.9L733.2 237.8L731.3 241.3L729.8 242.2L729.9 243.5L726.2 245.5L721.2 245.8L717.1 247.2L717.4 246.4L716.9 246.0L715.8 246.7L712.3 245.5L710.4 246.4L708.0 244.7L702.6 245.8L702.5 245.3L697.8 245.0L697.4 244.4L696.5 244.7L697.0 245.0L696.7 245.6L692.3 246.3L692.1 247.0L690.2 245.8L687.3 245.5L685.7 246.3L683.4 245.7L682.9 246.8L682.3 244.7L684.0 243.6L682.6 243.1L682.6 242.5L683.3 241.9L683.6 238.0L684.4 237.1L682.9 233.9L681.5 233.6L680.3 231.3L684.1 229.2L683.7 226.8L684.4 226.0L686.1 225.5L692.8 226.8L702.0 226.4L708.1 227.2L710.9 226.6L713.7 227.4L715.3 226.9L717.9 227.3L718.5 228.0L719.1 227.4L720.4 229.2L722.1 228.6L720.0 227.3L723.7 228.4L724.5 227.6L726.8 228.2L727.4 227.9L730.5 229.5L731.3 229.0L731.2 229.8L732.0 229.4L732.5 230.3L734.5 231.0L735.8 231.1L737.3 230.3ZM370.2 244.0L372.8 247.5L368.7 249.1L368.1 249.0L368.6 248.3L367.9 248.5L366.8 249.5L365.0 248.9L358.5 249.3L356.8 247.0L354.9 246.4L350.6 246.7L354.4 246.3L351.8 245.8L350.1 244.7L349.2 246.3L348.7 246.2L347.8 249.5L346.8 250.5L343.5 250.0L344.2 249.5L342.6 248.1L339.9 248.8L339.5 251.2L338.5 251.7L338.8 252.5L337.4 252.7L338.6 253.2L340.0 252.9L340.3 254.9L338.6 255.2L337.4 254.7L333.8 251.3L330.4 249.4L327.5 250.2L324.5 249.5L319.6 249.7L317.7 248.6L316.0 246.4L315.7 243.8L311.8 243.3L311.1 241.4L309.6 240.3L308.6 237.7L307.7 237.3L302.3 237.4L298.5 236.4L297.4 234.8L298.4 233.8L298.8 231.2L300.4 230.1L301.0 230.3L302.4 228.3L311.3 228.4L313.7 225.6L316.7 225.4L330.7 227.9L335.4 227.7L340.1 229.6L348.4 229.6L348.6 230.8L351.3 232.5L352.3 234.4L355.3 234.8L357.0 236.1L358.8 236.2L360.1 237.1L363.0 237.1L363.3 237.8L367.2 238.8ZM326.7 25.2L327.0 27.8L326.4 29.2L325.1 29.1L326.0 30.7L325.4 32.5L324.2 32.9L321.8 31.7L322.4 32.4L321.8 33.3L321.3 32.4L318.0 32.2L319.2 31.7L319.0 31.0L321.5 31.7L322.1 30.5L325.0 28.5L324.4 28.2L320.8 30.9L320.0 30.8L318.4 29.4L321.9 27.8L322.0 27.0L320.9 27.8L317.3 28.1L316.0 21.9L314.9 20.9L315.2 20.3L312.3 19.1L312.8 18.5L313.4 18.7L313.4 17.6L315.4 16.4L315.9 14.9L317.5 14.7L318.3 13.3L321.5 11.3L323.0 13.3L320.6 15.5L318.7 16.2L319.5 16.8L318.7 17.4L320.6 18.4L319.2 21.4L320.4 21.0L322.5 17.5L322.8 14.9L323.9 14.5L325.9 18.0L326.0 22.6L326.7 23.8L326.0 24.9L324.2 25.3L324.1 26.3ZM298.2 -2.2L299.0 -4.2L299.7 -4.2L300.3 -2.2L298.9 -0.2L299.0 0.6L300.8 -0.1L301.0 -1.2L301.6 -0.9L301.5 1.3L302.5 1.2L302.4 -0.4L303.4 0.1L301.3 -5.3L300.8 -5.1L301.2 -2.7L299.9 -4.6L300.3 -6.7L302.0 -8.6L301.9 -9.5L303.4 -10.2L304.4 -12.1L303.8 -13.1L304.9 -16.3L303.0 -22.2L303.4 -23.0L305.2 -22.8L307.2 -21.2L308.8 -22.1L311.1 -20.5L310.6 -19.9L311.3 -18.1L311.0 -15.3L312.2 -14.9L314.7 -9.0L319.4 -3.8L318.9 -0.1L319.9 2.4L319.8 4.7L315.1 7.0L314.8 8.6L311.2 9.9L309.7 11.1L310.0 12.0L309.3 12.4L308.1 10.8L307.6 8.3L305.7 7.4L305.7 3.7L304.1 5.1L302.5 5.1L298.2 2.6L295.4 -0.1L295.1 -1.0L296.9 -1.8L297.3 -2.6ZM338.4 -57.2L338.3 -50.2L337.0 -49.0L335.3 -50.5L334.5 -52.5L331.4 -53.6L330.7 -54.5L331.9 -54.7L332.8 -56.1L334.8 -57.2Z"};
+const MAPA = { lon0: -87, lon1: -58, lat0: 7, lat1: 24.6, ancho: 1000 };
+const merc = lat => Math.log(Math.tan(Math.PI / 4 + (lat * Math.PI / 180) / 2));
+const KX = MAPA.ancho / ((MAPA.lon1 - MAPA.lon0) * Math.PI / 180);
+const YTOP = merc(MAPA.lat1);
+const ALTO = (YTOP - merc(MAPA.lat0)) * KX;
+const proyectar = ([lon, lat]) => [((lon - MAPA.lon0) * Math.PI / 180) * KX, (YTOP - merc(lat)) * KX];
+
+const R_MN = 3440.065; // radio de la Tierra en millas náuticas
+function haversine([lon1, lat1], [lon2, lat2]) {
+  const r = Math.PI / 180;
+  const h = Math.sin((lat2 - lat1) * r / 2) ** 2 + Math.cos(lat1 * r) * Math.cos(lat2 * r) * Math.sin((lon2 - lon1) * r / 2) ** 2;
+  return 2 * R_MN * Math.asin(Math.sqrt(h));
+}
+
+const PUERTO = Object.fromEntries(PUERTOS.map(p => [p.id, p]));
+const GEOM = {};
+const grafo = {};
+PUERTOS.forEach(p => { grafo[p.id] = []; });
+for (const c of CONEXIONES) {
+  const pts = [[PUERTO[c.a].lon, PUERTO[c.a].lat], ...c.via, [PUERTO[c.b].lon, PUERTO[c.b].lat]];
+  let millas = 0;
+  for (let i = 0; i < pts.length - 1; i++) millas += haversine(pts[i], pts[i + 1]);
+  c.millas = Math.round(millas);
+  GEOM[c.a + '>' + c.b] = pts;
+  GEOM[c.b + '>' + c.a] = pts.slice().reverse();
+  grafo[c.a].push({ destino: c.b, millas: c.millas });
+  grafo[c.b].push({ destino: c.a, millas: c.millas });
+}
+
+// Dijkstra desde cada puerto = matriz de distancias mínimas entre todos los puertos
+const DIJ = Object.fromEntries(PUERTOS.map(p => [p.id, dijkstra(grafo, p.id)]));
+const DIST = Object.fromEntries(PUERTOS.map(p => [p.id, DIJ[p.id].dist]));
+const caminoEntre = (a, b) => reconstruirCamino(DIJ[a].previo, b);
+
+function geometriaNodos(nodos) {
+  const out = [];
+  for (let i = 0; i < nodos.length - 1; i++) {
+    const seg = GEOM[nodos[i] + '>' + nodos[i + 1]];
+    out.push(...(i === 0 ? seg : seg.slice(1)));
+  }
+  return out;
+}
+
+/* =====================================================================
+   4. ESTADO Y PLANIFICACIÓN
+   ===================================================================== */
+
+const CLAVE = 'naviera-pelicano-v1';
+const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const estado = {
+  paquetes: PAQUETES_BASE.map(p => ({ ...p })),
+  rutas: RUTAS_BASE.map(r => ({ ...r, puertos: [...r.puertos] })),
+  pestana: 'rutas',
+  rutaSel: 'todas',
+  dijOrigen: 'CTG',
+  dijDestino: 'HAV',
+  nnPaso: 0,
+  verDistancias: true,
+  animar: !reduceMotion,
+  puertoAbierto: null,
+  error: '',
+};
+let plan = null;
+
+function cargarGuardado() {
+  try {
+    const raw = localStorage.getItem(CLAVE);
+    if (!raw) return;
+    const d = JSON.parse(raw);
+    if (Array.isArray(d.paquetes)) {
+      const validos = d.paquetes.filter(p => p && typeof p.codigo === 'string' && PUERTO[p.destino] && p.destino !== BASE
+        && Number.isInteger(p.peso) && p.peso > 0 && Number.isFinite(p.valor) && p.valor >= 0);
+      estado.paquetes = validos.map(p => ({ codigo: p.codigo, nombre: String(p.nombre || 'Paquete').slice(0, 60), destino: p.destino, peso: p.peso, valor: Math.round(p.valor) }));
+    }
+    if (Array.isArray(d.rutas)) {
+      for (const g of d.rutas) {
+        const r = estado.rutas.find(x => x.id === g.id);
+        if (!r) continue;
+        r.maxPaquetes = limitar(g.maxPaquetes, 1, 20, r.maxPaquetes);
+        r.pesoMax = limitar(g.pesoMax, 100, 20000, r.pesoMax);
+        r.nudos = limitar(g.nudos, 6, 30, r.nudos);
+      }
+    }
+  } catch (e) { /* sin almacenamiento: se usan los datos de ejemplo */ }
+}
+function guardar() {
+  try {
+    localStorage.setItem(CLAVE, JSON.stringify({
+      paquetes: estado.paquetes,
+      rutas: estado.rutas.map(r => ({ id: r.id, maxPaquetes: r.maxPaquetes, pesoMax: r.pesoMax, nudos: r.nudos })),
+    }));
+  } catch (e) { /* ignorar */ }
+}
+function limitar(v, min, max, porDefecto) {
+  const n = Math.round(Number(v));
+  return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : porDefecto;
+}
+
+const rutaDePuerto = id => estado.rutas.find(r => r.puertos.includes(id));
+const nombre = id => PUERTO[id].nombre;
+const colorRuta = id => `var(--r-${id})`;
+
+function planificar() {
+  const p = { rutas: {}, paquete: {} };
+  for (const ruta of estado.rutas) {
+    const candidatos = estado.paquetes.filter(x => rutaDePuerto(x.destino) === ruta);
+    const carga = mochila(candidatos, ruta.pesoMax, ruta.maxPaquetes);           // 1. qué sube
+    const voraz = vorazPorValor(candidatos, ruta.pesoMax, ruta.maxPaquetes);
+    const paradas = ruta.puertos.filter(id => carga.elegidos.some(x => x.destino === id));
+    const nn = vecinoMasCercano(BASE, paradas, DIST);                           // 2. en qué orden
+    const optimo = mejorOrden(BASE, paradas, DIST);
+    const secuencia = paradas.length ? [BASE, ...nn.orden, BASE] : [];
+    const tramos = [], llegada = {};
+    let acumulado = 0;
+    for (let i = 0; i < secuencia.length - 1; i++) {
+      const nodos = caminoEntre(secuencia[i], secuencia[i + 1]);                // 3. por dónde (Dijkstra)
+      const dist = DIST[secuencia[i]][secuencia[i + 1]];
+      acumulado += dist;
+      tramos.push({ desde: secuencia[i], hasta: secuencia[i + 1], nodos, dist, acumulado });
+      if (i < secuencia.length - 2) llegada[secuencia[i + 1]] = { parada: i + 1, millas: acumulado, horas: acumulado / ruta.nudos };
+    }
+    const nodosRecorrido = tramos.flatMap((t, i) => (i === 0 ? t.nodos : t.nodos.slice(1)));
+    p.rutas[ruta.id] = {
+      ruta, candidatos, carga, voraz, paradas, nn, optimo, tramos, llegada,
+      total: acumulado, horas: acumulado / ruta.nudos, puntos: geometriaNodos(nodosRecorrido),
+    };
+    const elegidos = new Set(carga.elegidos.map(x => x.codigo));
+    for (const x of candidatos) {
+      const cargado = elegidos.has(x.codigo);
+      let recorrido = null;
+      if (cargado) {
+        const idx = tramos.findIndex(t => t.hasta === x.destino);
+        recorrido = tramos.slice(0, idx + 1).flatMap((t, i) => (i === 0 ? t.nodos : t.nodos.slice(1)));
+      }
+      p.paquete[x.codigo] = {
+        cargado, ruta, recorrido, eta: cargado ? llegada[x.destino] : null,
+        motivo: cargado ? '' : (x.peso > ruta.pesoMax ? 'Pesa más que la capacidad del buque' : 'No entra en la combinación de mayor valor'),
+      };
+    }
+  }
+  return p;
+}
+
+/* =====================================================================
+   5. FORMATO
+   ===================================================================== */
+
+const fmt = n => Math.round(n).toLocaleString('es-CO');
+const usd = n => 'US$ ' + fmt(n);
+const kg = n => fmt(n) + ' kg';
+const mn = n => fmt(n) + ' mn';
+function duracion(h) {
+  const t = Math.round(h), d = Math.floor(t / 24), r = t % 24;
+  return d ? `${d} d ${r} h` : `${r} h`;
+}
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const $ = s => document.querySelector(s);
+const rutasVisibles = () => estado.rutas.filter(r => estado.rutaSel === 'todas' || r.id === estado.rutaSel);
+const caminoTxt = nodos => nodos.map(nombre).join(' → ');
+
+/* =====================================================================
+   6. CARTA NÁUTICA (SVG)
+   ===================================================================== */
+
+const NS = 'http://www.w3.org/2000/svg';
+const f1 = n => n.toFixed(1);
+const dLinea = pts => 'M' + pts.map(p => f1(p[0]) + ' ' + f1(p[1])).join('L');
+
+// Desplaza una polilínea hacia la derecha del sentido de avance (carriles de ida y vuelta).
+function desplazar(pts, d) {
+  const limpio = pts.filter((p, i) => i === 0 || Math.hypot(p[0] - pts[i - 1][0], p[1] - pts[i - 1][1]) > 0.01);
+  if (limpio.length < 2) return limpio;
+  const normal = (a, b) => { const dx = b[0] - a[0], dy = b[1] - a[1], l = Math.hypot(dx, dy) || 1; return [-dy / l, dx / l]; };
+  const out = [];
+  for (let i = 0; i < limpio.length; i++) {
+    const p = limpio[i];
+    const n1 = i > 0 ? normal(limpio[i - 1], p) : null;
+    const n2 = i < limpio.length - 1 ? normal(p, limpio[i + 1]) : null;
+    if (n1 && n2) {
+      const dot = n1[0] * n2[0] + n1[1] * n2[1];
+      if (dot < -0.3) { // giro en U: dos puntos
+        out.push([p[0] + n1[0] * d, p[1] + n1[1] * d], [p[0] + n2[0] * d, p[1] + n2[1] * d]);
+        continue;
+      }
+      let mx = n1[0] + n2[0], my = n1[1] + n2[1];
+      const ml = Math.hypot(mx, my); mx /= ml; my /= ml;
+      const esc2 = Math.min(2, 1 / Math.max(0.5, mx * n1[0] + my * n1[1]));
+      out.push([p[0] + mx * d * esc2, p[1] + my * d * esc2]);
+    } else {
+      const n = n1 || n2;
+      out.push([p[0] + n[0] * d, p[1] + n[1] * d]);
+    }
+  }
+  return out;
+}
+function puntoMedio(pts) {
+  let total = 0;
+  const seg = [];
+  for (let i = 0; i < pts.length - 1; i++) { const l = Math.hypot(pts[i + 1][0] - pts[i][0], pts[i + 1][1] - pts[i][1]); seg.push(l); total += l; }
+  let r = total / 2;
+  for (let i = 0; i < seg.length; i++) {
+    if (r <= seg[i]) { const t = r / seg[i]; return [pts[i][0] + (pts[i + 1][0] - pts[i][0]) * t, pts[i][1] + (pts[i + 1][1] - pts[i][1]) * t]; }
+    r -= seg[i];
+  }
+  return pts[0];
+}
+
+const ETQ = { n: [0, -11, 'middle'], s: [0, 21, 'middle'], e: [11, 4.5, 'start'], w: [-11, 4.5, 'end'], ne: [8, -8, 'start'], nw: [-8, -8, 'end'], se: [8, 17, 'start'], sw: [-8, 17, 'end'] };
+const OPUESTO = { n: 's', s: 'n', e: 'w', w: 'e', ne: 'sw', nw: 'se', se: 'nw', sw: 'ne' };
+const INSIGNIA = { n: [0, -15], s: [0, 15], e: [15, 0], w: [-15, 0], ne: [11, -11], nw: [-11, -11], se: [11, 11], sw: [-11, 11] };
+
+function dibujarBase() {
+  const svg = $('#mapa');
+  svg.setAttribute('viewBox', `0 0 ${MAPA.ancho} ${f1(ALTO)}`);
+  let s = `<rect class="mar" x="0" y="0" width="${MAPA.ancho}" height="${f1(ALTO)}"/>`;
+  s += `<path class="bajo-1" d="${LAND.d}"/><path class="bajo-2" d="${LAND.d}"/>`;
+  for (let lon = -86; lon <= -58; lon += 2) {
+    const x = f1(proyectar([lon, 10])[0]);
+    s += `<line class="reticula" x1="${x}" y1="0" x2="${x}" y2="${f1(ALTO)}"/>`;
+  }
+  for (let lat = 8; lat <= 24; lat += 2) {
+    const y = f1(proyectar([-80, lat])[1]);
+    s += `<line class="reticula" x1="0" y1="${y}" x2="${MAPA.ancho}" y2="${y}"/>`;
+  }
+  s += `<path class="tierra" d="${LAND.d}"/>`;
+  for (let lon = -84; lon <= -60; lon += 4) {
+    const x = proyectar([lon, 10])[0];
+    s += `<text class="ret-txt" x="${f1(x + 3)}" y="13">${-lon}°O</text>`;
+  }
+  for (let lat = 8; lat <= 22; lat += 2) {
+    const y = proyectar([-80, lat])[1];
+    s += `<text class="ret-txt" x="5" y="${f1(y - 3)}">${lat}°N</text>`;
+  }
+  const texto = (cls, lon, lat, t, anchor = 'middle') => { const [x, y] = proyectar([lon, lat]); return `<text class="${cls}" x="${f1(x)}" y="${f1(y)}" text-anchor="${anchor}">${t}</text>`; };
+  s += texto('agua-txt grande', -72.5, 14.9, 'MAR CARIBE');
+  s += texto('agua-txt', -86.6, 23.95, 'Golfo de México', 'start');
+  s += texto('agua-txt', -63.3, 21.2, 'Océano Atlántico');
+  s += texto('agua-txt', -86.6, 7.45, 'Océano Pacífico', 'start');
+  s += texto('pais-txt', -74.4, 8.7, 'COLOMBIA');
+  s += texto('pais-txt', -66.6, 8.6, 'VENEZUELA');
+  s += texto('pais-txt', -80.6, 8.35, 'PANAMÁ');
+  s += texto('pais-txt', -84.3, 10.55, 'COSTA RICA');
+  s += texto('pais-txt', -85.2, 12.9, 'NICARAGUA');
+  s += texto('pais-txt', -86.6, 14.75, 'HONDURAS', 'start');
+  s += texto('pais-txt', -79.0, 21.85, 'CUBA');
+  s += texto('pais-txt', -77.35, 18.2, 'JAMAICA');
+  s += texto('pais-txt', -71.2, 19.1, 'LA ESPAÑOLA');
+
+  // Rosa de los vientos
+  const [cx, cy] = proyectar([-60.2, 22.6]);
+  s += `<g transform="translate(${f1(cx)} ${f1(cy)})">
+    <circle class="rosa-anillo" r="27"/><circle class="rosa-anillo" r="21"/>
+    <path class="rosa-punta" d="M0 -30 L5 0 L0 0 Z M0 30 L-5 0 L0 0 Z M30 0 L0 5 L0 0 Z M-30 0 L0 -5 L0 0 Z"/>
+    <path class="rosa-punta clara" d="M0 -30 L-5 0 L0 0 Z M0 30 L5 0 L0 0 Z M30 0 L0 -5 L0 0 Z M-30 0 L0 5 L0 0 Z"/>
+    <text class="rosa-txt" x="0" y="-34" text-anchor="middle">N</text></g>`;
+
+  // Escala gráfica (a 16° N)
+  const pxPorMilla = (KX * Math.PI / 180) / (60 * Math.cos(16 * Math.PI / 180));
+  const [ex, ey] = [40, ALTO - 24];
+  const l100 = 100 * pxPorMilla;
+  s += `<g transform="translate(${ex} ${f1(ey)})">
+    <rect class="escala-a" x="0" y="0" width="${f1(l100)}" height="5"/>
+    <rect class="escala-b" x="${f1(l100)}" y="0" width="${f1(l100)}" height="5"/>
+    <text class="escala-txt" x="0" y="-4">0</text>
+    <text class="escala-txt" x="${f1(l100)}" y="-4" text-anchor="middle">100</text>
+    <text class="escala-txt" x="${f1(2 * l100)}" y="-4" text-anchor="middle">200 mn</text>
+    <text class="escala-txt" x="0" y="16">Escala aprox. a 16° N · Mercator</text></g>`;
+  s += `<rect class="marco" x="0.75" y="0.75" width="${MAPA.ancho - 1.5}" height="${f1(ALTO - 1.5)}"/>`;
+  $('#g-base').innerHTML = s;
+}
+
+let barcos = [];
+
+function dibujarMapa() {
+  // Aristas del grafo
+  let s = '';
+  for (const c of CONEXIONES) {
+    const pts = GEOM[c.a + '>' + c.b].map(proyectar);
+    s += `<path class="conexion" d="${dLinea(pts)}"><title>${nombre(c.a)} – ${nombre(c.b)}: ${mn(c.millas)}</title></path>`;
+    if (estado.verDistancias) {
+      const [x, y] = puntoMedio(pts);
+      s += `<text class="dist-txt" x="${f1(x)}" y="${f1(y + 3)}" text-anchor="middle">${c.millas}</text>`;
+    }
+  }
+  $('#g-conex').innerHTML = s;
+
+  // Recorridos de cada buque
+  const gR = $('#g-rutas');
+  gR.innerHTML = '';
+  $('#g-barcos').innerHTML = '';
+  barcos = [];
+  const modoDij = estado.pestana === 'dijkstra';
+  const modoNN = estado.pestana === 'vecino' && estado.rutaSel !== 'todas';
+  estado.rutas.forEach((ruta, idx) => {
+    const pr = plan.rutas[ruta.id];
+    if (pr.puntos.length < 2) return;
+    const pts = desplazar(pr.puntos.map(proyectar), 2.2 + idx * 1.6);
+    const g = document.createElementNS(NS, 'g');
+    g.setAttribute('class', 'ruta');
+    g.style.setProperty('--c', colorRuta(ruta.id));
+    const atenuada = modoDij || modoNN || (estado.rutaSel !== 'todas' && estado.rutaSel !== ruta.id);
+    if (atenuada) g.classList.add('atenuada');
+    const path = document.createElementNS(NS, 'path');
+    path.setAttribute('class', 'ruta-linea');
+    path.setAttribute('d', dLinea(pts));
+    g.appendChild(path);
+    gR.appendChild(g);
+    const L = path.getTotalLength();
+    let flechas = '';
+    for (let d = 40; d < L - 10; d += 70) {
+      const a = path.getPointAtLength(d), b = path.getPointAtLength(d + 1);
+      const ang = Math.atan2(b.y - a.y, b.x - a.x) * 180 / Math.PI;
+      flechas += `<path class="ruta-flecha" transform="translate(${f1(a.x)} ${f1(a.y)}) rotate(${f1(ang)})" d="M-3 -3 L1.5 0 L-3 3"/>`;
+    }
+    g.insertAdjacentHTML('beforeend', flechas);
+    if (!atenuada) {
+      const barco = document.createElementNS(NS, 'g');
+      barco.setAttribute('class', 'barco');
+      barco.style.setProperty('--c', colorRuta(ruta.id));
+      barco.innerHTML = `<path d="M-8 -3.6 L4 -3.6 L9 0 L4 3.6 L-8 3.6 Z"/><title>${esc(ruta.buque)} (${esc(ruta.nombre)})</title>`;
+      $('#g-barcos').appendChild(barco);
+      barcos.push({ g: barco, path, L, vel: ruta.nudos * 3.2, pos: barcos.length * 37 % L });
+    }
+  });
+  colocarBarcos(0);
+
+  dibujarResalte();
+  dibujarPuertos();
+}
+
+function dibujarResalte() {
+  let s = '';
+  const linea = (nodos, cls, color) => {
+    if (nodos.length < 2) return '';
+    const d = dLinea(geometriaNodos(nodos).map(proyectar));
+    const estilo = color ? ` style="--c:${color}"` : '';
+    return (cls.includes('candidato') ? '' : `<path class="resalte-casco" d="${d}"/>`) + `<path class="resalte ${cls}"${estilo} d="${d}"/>`;
+  };
+  const anillo = id => { const [x, y] = proyectar([PUERTO[id].lon, PUERTO[id].lat]); return `<circle class="resalte-anillo" cx="${f1(x)}" cy="${f1(y)}" r="11"/>`; };
+  const nota = (id, t) => {
+    const p = PUERTO[id]; const [x, y] = proyectar([p.lon, p.lat]);
+    const [dx, dy] = INSIGNIA[OPUESTO[p.etiqueta]];
+    const anchor = dx > 0 ? 'start' : dx < 0 ? 'end' : 'middle';
+    return `<text class="resalte-txt" x="${f1(x + dx * 1.15)}" y="${f1(y + dy * 1.15 + 4)}" text-anchor="${anchor}">${t}</text>`;
+  };
+
+  if (estado.pestana === 'dijkstra') {
+    s += linea(caminoEntre(estado.dijOrigen, estado.dijDestino), '');
+    s += anillo(estado.dijOrigen);
+  } else if (estado.pestana === 'vecino' && estado.rutaSel !== 'todas') {
+    const pr = plan.rutas[estado.rutaSel];
+    const pasos = pr.nn.pasos;
+    const paso = Math.min(estado.nnPaso, pasos.length);
+    for (let i = 0; i < paso; i++) s += linea(pr.tramos[i].nodos, 'hecho', colorRuta(estado.rutaSel));
+    if (pasos.length && paso < pasos.length) {
+      const actual = pasos[paso];
+      for (const c of actual.candidatos.slice(1)) s += linea(caminoEntre(actual.desde, c.puerto), 'candidato');
+      s += linea(caminoEntre(actual.desde, actual.elegido), '');
+      for (const c of actual.candidatos) s += nota(c.puerto, mn(c.dist));
+      s += anillo(actual.desde);
+    } else if (pasos.length) {
+      const ultimo = pr.tramos[pr.tramos.length - 1];
+      s += linea(ultimo.nodos, '');
+      s += anillo(ultimo.desde);
+      s += nota(BASE, 'regreso ' + mn(ultimo.dist));
+    }
+  }
+  $('#g-resalte').innerHTML = s;
+}
+
+function dibujarPuertos() {
+  const modoDij = estado.pestana === 'dijkstra';
+  const modoNN = estado.pestana === 'vecino' && estado.rutaSel !== 'todas';
+  let s = '';
+  for (const p of PUERTOS) {
+    const [x, y] = proyectar([p.lon, p.lat]);
+    const [dx, dy, anchor] = ETQ[p.etiqueta];
+    const extra = modoDij ? ` <tspan class="d">${DIST[estado.dijOrigen][p.id] === 0 ? '0' : fmt(DIST[estado.dijOrigen][p.id])}</tspan>` : '';
+    const etiqueta = `<text class="puerto-txt${p.id === BASE ? ' base' : ''}" x="${f1(x + dx)}" y="${f1(y + dy)}" text-anchor="${anchor}">${p.nombre}${extra}</text>`;
+    const aria = `aria-label="${p.nombre}, ${p.pais}"`;
+    if (p.id === BASE) {
+      s += `<g class="puerto" data-puerto="${p.id}" tabindex="0" role="button" ${aria}>
+        <circle class="puerto-zona" cx="${f1(x)}" cy="${f1(y)}" r="15"/>
+        <circle class="base-anillo" cx="${f1(x)}" cy="${f1(y)}" r="8"/>
+        <circle class="base-centro" cx="${f1(x)}" cy="${f1(y)}" r="3.4"/>${etiqueta}</g>`;
+      continue;
+    }
+    const ruta = rutaDePuerto(p.id);
+    const pr = plan.rutas[ruta.id];
+    const llegada = pr.llegada[p.id];
+    const vacio = !llegada;
+    s += `<g class="puerto" data-puerto="${p.id}" tabindex="0" role="button" ${aria} style="--c:${colorRuta(ruta.id)}">
+      <circle class="puerto-zona" cx="${f1(x)}" cy="${f1(y)}" r="14"/>
+      <circle class="puerto-punto${vacio ? ' vacio' : ''}" cx="${f1(x)}" cy="${f1(y)}" r="5.5" fill="var(--c)"/>${etiqueta}`;
+    let mostrarInsignia = !!llegada && !modoDij && (estado.rutaSel === 'todas' || estado.rutaSel === ruta.id);
+    if (modoNN) mostrarInsignia = !!llegada && ruta.id === estado.rutaSel && llegada.parada <= Math.min(estado.nnPaso, pr.nn.pasos.length);
+    if (mostrarInsignia) {
+      const [bx, by] = INSIGNIA[OPUESTO[p.etiqueta]];
+      s += `<g class="parada" transform="translate(${f1(x + bx)} ${f1(y + by)})"><circle r="7.5"/><text y="3.3">${llegada.parada}</text></g>`;
+    }
+    s += `</g>`;
+  }
+  $('#g-puertos').innerHTML = s;
+}
+
+// Animación de los barcos sobre su recorrido
+let ultimoT = null;
+function colocarBarcos(dt) {
+  for (const b of barcos) {
+    b.pos = (b.pos + b.vel * dt) % b.L;
+    const a = b.path.getPointAtLength(b.pos), c = b.path.getPointAtLength(Math.min(b.L, b.pos + 1.5));
+    const ang = Math.atan2(c.y - a.y, c.x - a.x) * 180 / Math.PI;
+    b.g.setAttribute('transform', `translate(${f1(a.x)} ${f1(a.y)}) rotate(${f1(ang)})`);
+  }
+}
+function bucle(t) {
+  if (ultimoT !== null && estado.animar) colocarBarcos(Math.min(0.1, (t - ultimoT) / 1000));
+  ultimoT = t;
+  requestAnimationFrame(bucle);
+}
+
+function mostrarPopover() {
+  const pop = $('#popover');
+  const id = estado.puertoAbierto;
+  if (!id) { pop.hidden = true; return; }
+  const p = PUERTO[id];
+  const [x, y] = proyectar([p.lon, p.lat]);
+  let html = `<button type="button" class="cerrar" data-accion="cerrar-popover" aria-label="Cerrar">×</button>
+    <h4>${p.nombre} <small>${p.pais}</small></h4>`;
+  if (id === BASE) {
+    const zarpan = estado.rutas.filter(r => plan.rutas[r.id].paradas.length).length;
+    html += `<p>Puerto base de la naviera. Hoy zarpan <b>${zarpan}</b> de ${estado.rutas.length} buques.</p><ul>` +
+      estado.rutas.map(r => { const pr = plan.rutas[r.id]; return `<li style="--c:${colorRuta(r.id)}"><span class="ruta-tag"><i></i></span><span>${esc(r.buque)}</span><span class="t">${pr.paradas.length ? mn(pr.total) : 'no zarpa'}</span></li>`; }).join('') + '</ul>';
+  } else {
+    const ruta = rutaDePuerto(id), pr = plan.rutas[ruta.id], ll = pr.llegada[id];
+    const paquetes = estado.paquetes.filter(x => x.destino === id);
+    html += `<p><span class="ruta-tag" style="--c:${colorRuta(ruta.id)}"><i></i>${ruta.nombre}</span> · ${ll ? `parada ${ll.parada}, llega en ${duracion(ll.horas)}` : 'sin entregas en este zarpe'}</p>
+      <p class="nota">Desde Cartagena (Dijkstra): <b>${mn(DIST[BASE][id])}</b><br>${caminoTxt(caminoEntre(BASE, id))}</p>
+      <ul>${paquetes.length ? paquetes.map(x => { const e = plan.paquete[x.codigo]; return `<li><span class="${e.cargado ? 'ok-txt' : 'espera-txt'}">${e.cargado ? '✓' : '✕'}</span><span>${esc(x.nombre)}</span><span class="t">${kg(x.peso)}</span></li>`; }).join('') : '<li><span></span><span class="nota">No hay paquetes para este puerto.</span><span></span></li>'}</ul>`;
+  }
+  pop.innerHTML = html;
+  pop.hidden = false;
+  const px = x / MAPA.ancho * 100, py = y / ALTO * 100;
+  pop.style.left = px > 55 ? '' : `calc(${px}% + 14px)`;
+  pop.style.right = px > 55 ? `calc(${100 - px}% + 14px)` : '';
+  pop.style.top = py > 55 ? '' : `calc(${py}% - 10px)`;
+  pop.style.bottom = py > 55 ? `calc(${100 - py}% - 10px)` : '';
+}
+
+/* =====================================================================
+   7. PANEL
+   ===================================================================== */
+
+function htmlKpis() {
+  const r = Object.values(plan.rutas);
+  const total = estado.paquetes.length;
+  const cargados = r.reduce((s, x) => s + x.carga.elegidos.length, 0);
+  const peso = r.reduce((s, x) => s + x.carga.peso, 0);
+  const capacidad = estado.rutas.reduce((s, x) => s + x.pesoMax, 0);
+  const valor = r.reduce((s, x) => s + x.carga.valor, 0);
+  const millas = r.reduce((s, x) => s + x.total, 0);
+  const zarpan = r.filter(x => x.paradas.length).length;
+  return `
+    <div class="kpi"><span>A bordo</span><b>${cargados} / ${total}</b><small>paquetes cargados</small></div>
+    <div class="kpi"><span>En espera</span><b>${total - cargados}</b><small>para el próximo zarpe</small></div>
+    <div class="kpi"><span>Peso a bordo</span><b>${kg(peso)}</b><small>de ${kg(capacidad)} de capacidad</small></div>
+    <div class="kpi"><span>Fletes a bordo</span><b>${usd(valor)}</b><small>valor maximizado por la mochila</small></div>
+    <div class="kpi"><span>Navegación</span><b>${mn(millas)}</b><small>${zarpan} de ${estado.rutas.length} buques zarpan</small></div>`;
+}
+
+function medidor(etq, usado, max, unidad) {
+  const pct = Math.min(100, (usado / max) * 100);
+  return `<div class="medidor"><div class="fila"><span>${etq}</span><b>${fmt(usado)} / ${fmt(max)}${unidad}</b></div><div class="barra"><i style="width:${pct.toFixed(1)}%"></i></div></div>`;
+}
+
+function htmlRutas() {
+  return rutasVisibles().map(r => {
+    const pr = plan.rutas[r.id];
+    const n = pr.carga.elegidos.length;
+    let itin = '';
+    if (pr.paradas.length) {
+      itin = `<ol class="itinerario"><li><span class="num base">⚓</span><span>Zarpa de Cartagena</span><span class="t">0 mn</span></li>` +
+        pr.nn.orden.map((id, i) => { const ll = pr.llegada[id]; const nPaq = pr.carga.elegidos.filter(x => x.destino === id).length;
+          return `<li><span class="num">${i + 1}</span><span>${nombre(id)} <span class="nota">· ${nPaq} paquete${nPaq === 1 ? '' : 's'}</span></span><span class="t">${mn(ll.millas)} · ${duracion(ll.horas)}</span></li>`; }).join('') +
+        `<li><span class="num base">⚓</span><span>Regresa a Cartagena</span><span class="t">${mn(pr.total)} · ${duracion(pr.horas)}</span></li></ol>`;
+    } else {
+      itin = `<p class="nota">Ningún paquete cabe en este buque con la capacidad actual, así que no zarpa.</p>`;
+    }
+    return `<article class="bloque" style="--c:${colorRuta(r.id)}">
+      <header class="tr-cab"><span class="marca"></span>
+        <div><h3>${r.nombre}</h3><p>Buque <b>${esc(r.buque)}</b> · ${r.puertos.map(nombre).join(', ')}</p></div>
+        ${n ? '<span class="pill ok">Zarpa</span>' : '<span class="pill espera">Sin carga</span>'}
+      </header>
+      <div class="medidores">${medidor('Paquetes', n, r.maxPaquetes, '')}${medidor('Peso', pr.carga.peso, r.pesoMax, ' kg')}</div>
+      <dl class="cifras">
+        <div><dt>Fletes a bordo</dt><dd>${usd(pr.carga.valor)}</dd></div>
+        <div><dt>Recorrido</dt><dd>${mn(pr.total)}</dd></div>
+        <div><dt>Duración</dt><dd>${duracion(pr.horas)}</dd></div>
+      </dl>
+      ${itin}
+      <div class="ajustes">
+        <label class="campo">Máx. paquetes<input type="number" id="cap-${r.id}-maxPaquetes" data-ruta="${r.id}" data-campo="maxPaquetes" min="1" max="20" step="1" value="${r.maxPaquetes}"></label>
+        <label class="campo">Peso máximo (kg)<input type="number" id="cap-${r.id}-pesoMax" data-ruta="${r.id}" data-campo="pesoMax" min="100" max="20000" step="50" value="${r.pesoMax}"></label>
+        <label class="campo">Velocidad (nudos)<input type="number" id="cap-${r.id}-nudos" data-ruta="${r.id}" data-campo="nudos" min="6" max="30" step="1" value="${r.nudos}"></label>
+      </div>
+    </article>`;
+  }).join('') + `<div class="bloque"><p class="nota">Cambia la capacidad de un buque y observa cómo la mochila vuelve a elegir la carga, el vecino más cercano reordena las paradas y la carta se redibuja.</p><div><button type="button" class="boton claro" data-accion="restablecer">Restablecer datos de ejemplo</button></div></div>`;
+}
+
+function htmlPaquetes() {
+  const opciones = estado.rutas.map(r => `<optgroup label="${r.nombre}">${r.puertos.map(id => `<option value="${id}">${nombre(id)} (${PUERTO[id].pais})</option>`).join('')}</optgroup>`).join('');
+  const lista = estado.paquetes.filter(x => estado.rutaSel === 'todas' || rutaDePuerto(x.destino).id === estado.rutaSel);
+  const filas = lista.map(x => {
+    const e = plan.paquete[x.codigo];
+    const ruta = rutaDePuerto(x.destino);
+    return `<tr class="${e.cargado ? '' : 'no'}">
+      <td><b>${esc(x.nombre)}</b><span class="sub">${esc(x.codigo)}</span></td>
+      <td>${nombre(x.destino)}<span class="sub"><span class="ruta-tag" style="--c:${colorRuta(ruta.id)}"><i></i>${ruta.nombre}</span></span></td>
+      <td class="num">${kg(x.peso)}</td>
+      <td class="num">${usd(x.valor)}</td>
+      <td>${e.cargado ? `<span class="ok-txt">A bordo</span><span class="sub">llega en ${duracion(e.eta.horas)}</span>` : `<span class="espera-txt">En espera</span><span class="sub">${e.motivo}</span>`}</td>
+      <td class="camino">${e.cargado ? caminoTxt(e.recorrido) : '—'}</td>
+      <td><button type="button" class="quitar" data-accion="quitar" data-codigo="${esc(x.codigo)}" aria-label="Quitar ${esc(x.nombre)}">Quitar</button></td>
+    </tr>`;
+  }).join('');
+  return `<div class="bloque">
+      <h2>Registrar un paquete</h2>
+      <form class="form-paquete" id="form-paquete" novalidate>
+        <label class="campo ancho">Nombre del paquete<input id="np-nombre" type="text" maxlength="60" placeholder="Ej. Repuestos eléctricos" required></label>
+        <label class="campo ancho">Puerto destino<select id="np-destino">${opciones}</select></label>
+        <label class="campo">Peso (kg)<input id="np-peso" type="number" min="1" max="20000" step="1" placeholder="350" required></label>
+        <label class="campo">Flete (US$)<input id="np-valor" type="number" min="0" max="1000000" step="10" placeholder="1200" required></label>
+        <div class="acciones"><button type="submit" class="boton">Agregar paquete</button>${estado.error ? `<span class="error" role="alert">${estado.error}</span>` : '<span class="nota">La ruta se asigna sola según el puerto destino.</span>'}</div>
+      </form>
+    </div>
+    <div class="bloque">
+      <h2>Paquetes ${estado.rutaSel === 'todas' ? '' : '· ' + rutaVisibleNombre()} <span class="nota">(${lista.length})</span></h2>
+      <div class="tabla-wrap"><table>
+        <thead><tr><th>Paquete</th><th>Destino y ruta</th><th class="num">Peso</th><th class="num">Flete</th><th>Estado</th><th>Recorrido del buque</th><th></th></tr></thead>
+        <tbody>${filas || '<tr><td colspan="7" class="nota">No hay paquetes en esta ruta. Agrega uno con el formulario.</td></tr>'}</tbody>
+      </table></div>
+    </div>`;
+}
+const rutaVisibleNombre = () => estado.rutas.find(r => r.id === estado.rutaSel).nombre;
+
+function htmlMochila() {
+  let s = `<div class="bloque">
+    <h2>Mochila 0/1: qué paquetes suben a cada buque</h2>
+    <p>Cada buque es una “mochila” con dos límites: un número máximo de paquetes y un peso máximo. Cada paquete se lleva completo o no se lleva (0/1). La programación dinámica llena una tabla con el mejor valor posible para cada combinación de capacidad y elige la carga de mayor valor total.</p>
+    <div class="formula">V(i, w, k) = máx( V(i−1, w, k),                    ← no llevar el paquete i
+                 valorᵢ + V(i−1, w − pesoᵢ, k − 1) )  ← llevarlo
+w = kilos disponibles · k = cupos de paquetes disponibles</div>
+  </div>`;
+  for (const r of rutasVisibles()) {
+    const pr = plan.rutas[r.id];
+    const elegidos = new Set(pr.carga.elegidos.map(x => x.codigo));
+    const pesoCand = pr.candidatos.reduce((a, x) => a + x.peso, 0);
+    const filas = [...pr.candidatos].sort((a, b) => b.valor / b.peso - a.valor / a.peso).map(x => `<tr class="${elegidos.has(x.codigo) ? 'elegida' : 'no'}">
+        <td>${esc(x.nombre)}<span class="sub">${nombre(x.destino)}</span></td>
+        <td class="num">${kg(x.peso)}</td><td class="num">${usd(x.valor)}</td><td class="num">${(x.valor / x.peso).toFixed(2)}</td>
+        <td>${elegidos.has(x.codigo) ? '<span class="ok-txt">✓ Sube</span>' : '<span class="espera-txt">✕ Espera</span>'}</td></tr>`).join('');
+    const gana = pr.carga.valor > pr.voraz.valor;
+    s += `<article class="bloque" style="--c:${colorRuta(r.id)}">
+      <h3><span class="marca"></span>${r.nombre} · ${esc(r.buque)}</h3>
+      <p class="nota">Límites: <b>${r.maxPaquetes} paquetes</b> y <b>${kg(r.pesoMax)}</b>. Candidatos: ${pr.candidatos.length} paquetes que suman ${kg(pesoCand)}.</p>
+      <div class="tabla-wrap"><table>
+        <thead><tr><th>Paquete</th><th class="num">Peso</th><th class="num">Flete</th><th class="num">US$/kg</th><th>Decisión</th></tr></thead>
+        <tbody>${filas || '<tr><td colspan="5" class="nota">Sin paquetes para esta ruta.</td></tr>'}</tbody>
+      </table></div>
+      <div class="comparacion">
+        <div class="gana"><span>Mochila (óptimo)</span><b>${usd(pr.carga.valor)}</b><small>${pr.carga.elegidos.length} paquetes · ${kg(pr.carga.peso)}</small></div>
+        <div><span>Voraz: primero los más caros</span><b>${usd(pr.voraz.valor)}</b><small>${pr.voraz.elegidos.length} paquetes · ${kg(pr.voraz.peso)}</small></div>
+      </div>
+      <p class="nota">${gana ? `La mochila obtiene <b>${usd(pr.carga.valor - pr.voraz.valor)}</b> más que escoger solo por precio: a veces conviene dejar un paquete caro y pesado para llevar varios más livianos.` : 'Aquí el método voraz coincide con el óptimo, pero la mochila lo garantiza siempre.'}</p>
+    </article>`;
+  }
+  return s;
+}
+
+function htmlVecino() {
+  let s = `<div class="bloque">
+    <h2>Vecino más cercano: en qué orden entregar</h2>
+    <p>El buque sale de Cartagena y, en cada paso, va al puerto pendiente <b>más cercano</b> según las distancias de Dijkstra. Cuando entrega todo, regresa a la base. Es rápido y sencillo, pero no siempre da el recorrido más corto.</p>
+  </div>`;
+  if (estado.rutaSel === 'todas') {
+    s += `<div class="bloque"><h3>Elige una ruta para verlo paso a paso en la carta</h3>
+      <div class="rutas-elegir">${estado.rutas.map(r => `<button type="button" class="chip" data-ruta-sel="${r.id}" style="--c:${colorRuta(r.id)}"><i></i>${r.nombre}</button>`).join('')}</div>
+      <div class="tabla-wrap"><table><thead><tr><th>Ruta</th><th>Orden de entrega</th><th class="num">Vecino cercano</th><th class="num">Óptimo</th></tr></thead><tbody>` +
+      estado.rutas.map(r => { const pr = plan.rutas[r.id];
+        return `<tr><td><span class="ruta-tag" style="--c:${colorRuta(r.id)}"><i></i>${r.nombre}</span></td><td>${pr.paradas.length ? caminoTxt([BASE, ...pr.nn.orden, BASE]) : '<span class="nota">No zarpa</span>'}</td><td class="num">${mn(pr.nn.total)}</td><td class="num">${pr.optimo ? mn(pr.optimo.total) : '—'}</td></tr>`; }).join('') +
+      `</tbody></table></div><p class="nota">“Óptimo” prueba todos los órdenes posibles (fuerza bruta) solo para comparar.</p></div>`;
+    return s;
+  }
+  const r = estado.rutas.find(x => x.id === estado.rutaSel);
+  const pr = plan.rutas[r.id];
+  const pasos = pr.nn.pasos;
+  if (!pasos.length) {
+    return s + `<div class="bloque" style="--c:${colorRuta(r.id)}"><h3><span class="marca"></span>${r.nombre}</h3><p class="nota">Este buque no lleva paquetes, así que no hay paradas que ordenar.</p></div>`;
+  }
+  const paso = Math.min(estado.nnPaso, pasos.length);
+  let cuerpo;
+  if (paso < pasos.length) {
+    const p = pasos[paso];
+    cuerpo = `<p>El buque está en <b>${nombre(p.desde)}</b>. Puertos pendientes y su distancia mínima:</p>
+      <div class="tabla-wrap"><table><thead><tr><th>Puerto pendiente</th><th class="num">Distancia (Dijkstra)</th><th>Camino</th></tr></thead><tbody>` +
+      p.candidatos.map((c, i) => `<tr class="${i === 0 ? 'elegida' : ''}"><td>${i === 0 ? '<b>' + nombre(c.puerto) + '</b> ✓' : nombre(c.puerto)}</td><td class="num">${mn(c.dist)}</td><td class="camino">${caminoTxt(caminoEntre(p.desde, c.puerto))}</td></tr>`).join('') +
+      `</tbody></table></div><p>Elige <b>${nombre(p.elegido)}</b> porque es el más cercano (${mn(p.candidatos[0].dist)}).</p>`;
+  } else {
+    const ult = pr.tramos[pr.tramos.length - 1];
+    cuerpo = `<p>Ya no quedan puertos pendientes. El buque regresa de <b>${nombre(ult.desde)}</b> a Cartagena: <b>${mn(ult.dist)}</b> por ${caminoTxt(ult.nodos)}.</p>`;
+  }
+  const opt = pr.optimo;
+  s += `<div class="bloque" style="--c:${colorRuta(r.id)}">
+    <h3><span class="marca"></span>${r.nombre} · ${esc(r.buque)}</h3>
+    <div class="paso-nav">
+      <span class="cont">Paso ${paso + 1} de ${pasos.length + 1}</span>
+      <button type="button" class="boton claro" data-accion="nn-prev" ${paso === 0 ? 'disabled' : ''}>Anterior</button>
+      <button type="button" class="boton" data-accion="nn-next" ${paso >= pasos.length ? 'disabled' : ''}>Siguiente paso</button>
+    </div>
+    ${cuerpo}
+  </div>
+  <div class="bloque">
+    <h3>Resultado</h3>
+    <p>${caminoTxt([BASE, ...pr.nn.orden, BASE])}</p>
+    <div class="comparacion">
+      <div class="gana"><span>Vecino más cercano</span><b>${mn(pr.nn.total)}</b><small>${duracion(pr.horas)} a ${r.nudos} nudos</small></div>
+      <div><span>Óptimo (todas las combinaciones)</span><b>${opt ? mn(opt.total) : '—'}</b><small>${opt ? caminoTxt([BASE, ...opt.orden, BASE]) : 'demasiadas paradas para comparar'}</small></div>
+    </div>
+    <p class="nota">${opt && opt.total < pr.nn.total ? `El vecino más cercano navega ${mn(pr.nn.total - opt.total)} de más: es una heurística, no garantiza el óptimo.` : 'En esta ruta el vecino más cercano encontró el mejor orden posible.'}</p>
+  </div>`;
+  return s;
+}
+
+function htmlDijkstra() {
+  const o = estado.dijOrigen, d = estado.dijDestino;
+  const res = DIJ[o];
+  const camino = caminoEntre(o, d);
+  const opts = sel => PUERTOS.map(p => `<option value="${p.id}" ${p.id === sel ? 'selected' : ''}>${p.nombre}</option>`).join('');
+  const inf = v => (v === Infinity ? '∞' : fmt(v));
+  const pasos = res.pasos.map((p, i) => `<tr class="${camino.includes(p.nodo) ? 'elegida' : ''}">
+      <td class="num">${i + 1}</td><td><b>${nombre(p.nodo)}</b></td><td class="num">${fmt(p.dist)}</td>
+      <td>${p.cambios.length ? p.cambios.map(c => `${nombre(c.nodo)}: ${inf(c.antes)} → ${fmt(c.despues)}`).join('<br>') : '<span class="nota">sin cambios</span>'}</td></tr>`).join('');
+  const tabla = PUERTOS.map(p => `<tr><td>${p.nombre}</td><td class="num">${fmt(res.dist[p.id])}</td><td>${res.previo[p.id] ? nombre(res.previo[p.id]) : '—'}</td><td class="camino">${caminoTxt(caminoEntre(o, p.id))}</td></tr>`).join('');
+  const ids = PUERTOS.map(p => p.id);
+  const matriz = `<table><thead><tr><th></th>${ids.map(id => `<th class="num">${id}</th>`).join('')}</tr></thead><tbody>` +
+    ids.map(a => `<tr><th>${a}</th>${ids.map(b => `<td class="num">${a === b ? '·' : fmt(DIST[a][b])}</td>`).join('')}</tr>`).join('') + '</tbody></table>';
+  return `<div class="bloque">
+      <h2>Dijkstra: el camino más corto entre puertos</h2>
+      <p>El grafo tiene ${PUERTOS.length} puertos (nodos) y ${CONEXIONES.length} rutas marítimas (aristas) con su distancia en millas. Dijkstra fija en cada paso el puerto no visitado más cercano al origen y actualiza la distancia de sus vecinos si encuentra un camino más corto.</p>
+      <div class="selector">
+        <label class="campo">Origen<select id="dij-origen">${opts(o)}</select></label>
+        <label class="campo">Destino<select id="dij-destino">${opts(d)}</select></label>
+      </div>
+      <div class="resultado"><b>${mn(res.dist[d])}</b><span>${caminoTxt(camino)}</span><span>${camino.length - 1} tramo${camino.length === 2 ? '' : 's'} · unas ${duracion(res.dist[d] / 14)} a 14 nudos</span></div>
+      <p class="nota">También puedes tocar un puerto en la carta para usarlo como destino. Los números en magenta junto a cada puerto son su distancia mínima desde ${nombre(o)}.</p>
+    </div>
+    <div class="bloque">
+      <h3>Paso a paso desde ${nombre(o)}</h3>
+      <div class="tabla-wrap"><table><thead><tr><th class="num">#</th><th>Puerto fijado</th><th class="num">Distancia</th><th>Vecinos actualizados (mn)</th></tr></thead><tbody>${pasos}</tbody></table></div>
+    </div>
+    <div class="bloque">
+      <h3>Distancias mínimas desde ${nombre(o)}</h3>
+      <div class="tabla-wrap"><table><thead><tr><th>Puerto</th><th class="num">mn</th><th>Previo</th><th>Camino</th></tr></thead><tbody>${tabla}</tbody></table></div>
+      <details><summary>Matriz completa de distancias (Dijkstra desde cada puerto)</summary><p class="nota">Esta matriz es la que usa el vecino más cercano.</p><div class="tabla-wrap">${matriz}</div></details>
+    </div>`;
+}
+
+function htmlCodigo() {
+  const bloques = [
+    ['Dijkstra', dijkstra], ['Reconstruir el camino', reconstruirCamino],
+    ['Vecino más cercano', vecinoMasCercano], ['Mochila 0/1 con peso y cantidad', mochila],
+  ];
+  const ejemploPaquete = JSON.stringify(PAQUETES_BASE[0], null, 2);
+  const r = RUTAS_BASE[0];
+  const ejemploRuta = JSON.stringify({ id: r.id, nombre: r.nombre, buque: r.buque, puertos: r.puertos, maxPaquetes: r.maxPaquetes, pesoMax: r.pesoMax, nudos: r.nudos }, null, 2);
+  return `<div class="bloque">
+      <h2>Código que se ejecuta en esta página</h2>
+      <p class="nota">Estas son las funciones reales que calculan el zarpe, escritas en JavaScript. Cada cambio en paquetes o capacidades las vuelve a ejecutar.</p>
+      <h3>Variables de un paquete y de una ruta</h3>
+      <pre class="codigo">// Paquete\n${esc(ejemploPaquete)}\n\n// Ruta (buque)\n${esc(ejemploRuta)}</pre>
+    </div>` +
+    bloques.map(([t, fn]) => `<div class="bloque"><h3>${t}</h3><pre class="codigo">${esc(fn.toString())}</pre></div>`).join('');
+}
+
+function renderPanel() {
+  document.querySelectorAll('#pestanas button').forEach(b => b.setAttribute('aria-selected', String(b.dataset.pestana === estado.pestana)));
+  const fn = { rutas: htmlRutas, paquetes: htmlPaquetes, mochila: htmlMochila, vecino: htmlVecino, dijkstra: htmlDijkstra, codigo: htmlCodigo }[estado.pestana];
+  $('#panel').innerHTML = fn();
+}
+
+function renderChips() {
+  const chips = [{ id: 'todas', nombre: 'Todas las rutas' }, ...estado.rutas];
+  $('#chips').innerHTML = chips.map(r => `<button type="button" class="chip" data-ruta-sel="${r.id}" aria-pressed="${estado.rutaSel === r.id}" ${r.id !== 'todas' ? `style="--c:${colorRuta(r.id)}"` : ''}>${r.id !== 'todas' ? '<i></i>' : ''}${r.nombre}</button>`).join('');
+}
+
+function render() {
+  plan = planificar();
+  $('#kpis').innerHTML = htmlKpis();
+  renderChips();
+  dibujarMapa();
+  renderPanel();
+  mostrarPopover();
+}
+
+/* =====================================================================
+   8. EVENTOS
+   ===================================================================== */
+
+function irAPestana(p) {
+  estado.pestana = p;
+  if (p === 'vecino') estado.nnPaso = 0;
+  render();
+}
+
+document.addEventListener('click', e => {
+  const t = e.target.closest('[data-pestana],[data-ir],[data-ruta-sel],[data-accion],[data-puerto]');
+  if (!t) {
+    if (!e.target.closest('#popover') && estado.puertoAbierto) { estado.puertoAbierto = null; mostrarPopover(); }
+    return;
+  }
+  if (t.dataset.pestana) return irAPestana(t.dataset.pestana);
+  if (t.dataset.ir) { irAPestana(t.dataset.ir); document.querySelector('.tablero').scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' }); return; }
+  if (t.dataset.rutaSel) { estado.rutaSel = t.dataset.rutaSel; estado.nnPaso = 0; return render(); }
+  if (t.dataset.puerto) {
+    const id = t.dataset.puerto;
+    if (estado.pestana === 'dijkstra') {
+      if (id !== estado.dijOrigen) estado.dijDestino = id;
+      estado.puertoAbierto = null;
+      return render();
+    }
+    estado.puertoAbierto = estado.puertoAbierto === id ? null : id;
+    return mostrarPopover();
+  }
+  const accion = t.dataset.accion;
+  if (accion === 'cerrar-popover') { estado.puertoAbierto = null; mostrarPopover(); }
+  else if (accion === 'quitar') { estado.paquetes = estado.paquetes.filter(x => x.codigo !== t.dataset.codigo); guardar(); render(); }
+  else if (accion === 'nn-prev') { estado.nnPaso = Math.max(0, estado.nnPaso - 1); render(); }
+  else if (accion === 'nn-next') { estado.nnPaso += 1; render(); }
+  else if (accion === 'restablecer') {
+    estado.paquetes = PAQUETES_BASE.map(p => ({ ...p }));
+    estado.rutas = RUTAS_BASE.map(r => ({ ...r, puertos: [...r.puertos] }));
+    estado.error = '';
+    try { localStorage.removeItem(CLAVE); } catch (err) { /* ignorar */ }
+    render();
+  }
+});
+
+document.addEventListener('keydown', e => {
+  const t = e.target.closest && e.target.closest('[data-puerto]');
+  if (t && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); t.dispatchEvent(new MouseEvent('click', { bubbles: true })); }
+  if (e.key === 'Escape' && estado.puertoAbierto) { estado.puertoAbierto = null; mostrarPopover(); }
+});
+
+document.addEventListener('change', e => {
+  const t = e.target;
+  if (t.dataset && t.dataset.campo) {
+    const r = estado.rutas.find(x => x.id === t.dataset.ruta);
+    const lim = { maxPaquetes: [1, 20], pesoMax: [100, 20000], nudos: [6, 30] }[t.dataset.campo];
+    r[t.dataset.campo] = limitar(t.value, lim[0], lim[1], r[t.dataset.campo]);
+    guardar();
+    render();
+  } else if (t.id === 'dij-origen' || t.id === 'dij-destino') {
+    estado[t.id === 'dij-origen' ? 'dijOrigen' : 'dijDestino'] = t.value;
+    render();
+  }
+});
+
+document.addEventListener('submit', e => {
+  if (e.target.id !== 'form-paquete') return;
+  e.preventDefault();
+  const nombreP = $('#np-nombre').value.trim();
+  const destino = $('#np-destino').value;
+  const peso = Number($('#np-peso').value);
+  const valor = Number($('#np-valor').value);
+  if (!nombreP) estado.error = 'Escribe el nombre del paquete.';
+  else if (!Number.isFinite(peso) || peso < 1 || peso > 20000) estado.error = 'El peso debe estar entre 1 y 20.000 kg.';
+  else if ($('#np-valor').value === '' || !Number.isFinite(valor) || valor < 0) estado.error = 'Escribe el valor del flete en US$ (0 o más).';
+  else estado.error = '';
+  if (estado.error) { renderPanel(); return; }
+  const usados = estado.paquetes.map(x => Number((x.codigo.match(/\d+/) || [0])[0]));
+  const codigo = 'PK-' + String(Math.max(500, ...usados) + 1);
+  estado.paquetes.push({ codigo, nombre: nombreP.slice(0, 60), destino, peso: Math.round(peso), valor: Math.round(valor) });
+  guardar();
+  render();
+  const sel = $('#np-destino'); if (sel) sel.value = destino;
+});
+
+$('#t-dist').addEventListener('click', e => {
+  estado.verDistancias = !estado.verDistancias;
+  e.currentTarget.setAttribute('aria-pressed', String(estado.verDistancias));
+  dibujarMapa();
+});
+$('#t-animar').addEventListener('click', e => {
+  estado.animar = !estado.animar;
+  e.currentTarget.setAttribute('aria-pressed', String(estado.animar));
+});
+
+/* =====================================================================
+   9. INICIO
+   ===================================================================== */
+cargarGuardado();
+$('#t-animar').setAttribute('aria-pressed', String(estado.animar));
+dibujarBase();
+render();
+requestAnimationFrame(bucle);
+</script>
+
+</body>
+</html>

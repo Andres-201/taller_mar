@@ -1,0 +1,74 @@
+/* Estilos del simulador: colores de carta náutica, mapa a la izquierda y panel a la derecha. */
+
+body {
+  margin: 0;
+  padding: 16px 24px;
+  font-family: "Segoe UI", system-ui, sans-serif;
+  font-size: 15px;
+  background: #e9eff0;
+  color: #10222a;
+}
+
+h1 { margin: 0; font-size: 34px; }
+header p { margin: 4px 0 12px; color: #53666e; max-width: 900px; }
+
+/* Resumen de arriba */
+#resumen { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 14px; }
+.dato { background: white; border: 1px solid #c8d5d9; border-radius: 8px; padding: 8px 14px; }
+.dato b { display: block; font-size: 20px; font-family: Consolas, monospace; }
+.dato span { font-size: 12px; color: #53666e; text-transform: uppercase; }
+
+/* Dos columnas: mapa y panel */
+main { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 18px; align-items: start; }
+@media (max-width: 1000px) { main { grid-template-columns: minmax(0, 1fr); } }
+#panel { overflow-x: auto; }  /* si una tabla no cabe, se desplaza dentro del panel */
+
+/* Botones de filtro y pestañas */
+#filtros, #pestanas { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+button {
+  font: inherit; cursor: pointer; border: 1px solid #c8d5d9; background: white;
+  border-radius: 6px; padding: 5px 12px;
+}
+button.activo { background: #0b5a6b; color: white; border-color: #0b5a6b; }
+
+/* Mapa */
+#mapa { width: 100%; height: auto; display: block; border: 1px solid #10222a; border-radius: 6px; background: #f3f9fb; }
+.mar { fill: #f3f9fb; }
+.tierra { fill: #ece2c2; stroke: #9c8a5c; stroke-width: 0.7; }
+.conexion { fill: none; stroke: #5c8496; stroke-width: 1; stroke-dasharray: 3 4; }
+.millas { fill: #5c8496; font-size: 10px; font-family: Consolas, monospace; text-anchor: middle; }
+.recorrido { fill: none; stroke-width: 3; stroke-linejoin: round; stroke-linecap: round; }
+.recorrido.apagada { opacity: 0.15; }
+.camino-corto { fill: none; stroke: #b0127a; stroke-width: 5; stroke-linejoin: round; stroke-linecap: round; }
+.puerto { cursor: pointer; }
+.puerto circle { stroke-width: 2.5; }
+.puerto text {
+  font-size: 13px; font-weight: 600;
+  paint-order: stroke; stroke: #f3f9fb; stroke-width: 4px; stroke-linejoin: round; /* borde claro para leer sobre el mapa */
+}
+.elegido { fill: none; stroke: #b0127a; stroke-width: 2.5; }
+
+/* Cuadro del puerto elegido y panel */
+#info, .tarjeta { background: white; border: 1px solid #c8d5d9; border-radius: 8px; padding: 10px 14px; margin-top: 10px; }
+.tarjeta { border-left-width: 6px; margin: 0 0 10px; }
+h3 { margin: 0 0 6px; }
+h3 small { font-weight: normal; color: #53666e; }
+p { margin: 6px 0; }
+.nota { color: #53666e; font-size: 13px; }
+.error { color: #c2382d; font-weight: 600; }
+.formula { font-family: Consolas, monospace; background: #f0f5f6; padding: 10px; border-radius: 6px; white-space: pre; overflow-x: auto; }
+.resultado { font-size: 20px; color: #b0127a; font-weight: 600; }
+progress { width: 120px; vertical-align: middle; }
+
+/* Tablas y formularios */
+table { border-collapse: collapse; width: 100%; font-size: 13px; background: white; }
+th, td { border-bottom: 1px solid #e1e8ea; padding: 5px 6px; text-align: left; }
+th { background: #f0f5f6; }
+.si { color: #12805a; font-weight: 600; }
+.no { color: #a35f00; }
+.campos, form { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; }
+label { font-size: 12px; color: #53666e; display: grid; gap: 2px; }
+input, select { font: inherit; padding: 4px 6px; border: 1px solid #c8d5d9; border-radius: 5px; }
+input[type="number"] { width: 90px; }
+ol { padding-left: 20px; }
+li { margin-bottom: 4px; }

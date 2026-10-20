@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Simulador Naviera Pelícano</title>
+  <link rel="stylesheet" href="estilos.css">
+</head>
+<body>
+  <header>
+    <h1>Naviera Pelícano</h1>
+    <p>Entregas por mar desde Cartagena. Python calcula con <b>mochila 0/1</b> (qué carga cada buque),
+       <b>vecino más cercano</b> (en qué orden entrega) y <b>Dijkstra</b> (camino más corto). Esta página solo lo muestra.</p>
+  </header>
+
+  <section id="resumen"></section>
+
+  <main>
+    <section>
+      <div id="filtros"></div>
+      <svg id="mapa"></svg>
+      <div id="info"></div>
+    </section>
+
+    <section>
+      <nav id="pestanas">
+        <button data-pestana="rutas">Rutas</button>
+        <button data-pestana="paquetes">Paquetes</button>
+        <button data-pestana="mochila">Mochila</button>
+        <button data-pestana="vecino">Vecino cercano</button>
+        <button data-pestana="dijkstra">Dijkstra</button>
+      </nav>
+      <div id="panel">Cargando…</div>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
